@@ -1,0 +1,250 @@
+/* src/index.css */
+/* =====================================================
+   ESTILOS GLOBAIS
+   Aqui ficam regras que afetam TODA a aplicação.
+   Estilos específicos de componentes ficam em seus
+   próprios arquivos .css ou como styled-components.
+===================================================== */
+
+/* Importa fontes do Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Reset básico: remove margens e paddings padrão do navegador */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Variáveis de cor — mude aqui para mudar o tema inteiro */
+:root {
+  --cor-primaria:        #C0392B;   /* Vermelho karatê */
+  --cor-primaria-escura: #96281B;
+  --cor-primaria-clara:  #E74C3C;
+  --cor-secundaria:      #2C3E50;  /* Azul escuro */
+  --cor-fundo:           #F0F2F5;
+  --cor-fundo-card:      #FFFFFF;
+  --cor-texto:           #2C3E50;
+  --cor-texto-suave:     #7F8C8D;
+  --cor-borda:           #E0E0E0;
+  --cor-ouro:            #F39C12;
+  --cor-prata:           #95A5A6;
+  --cor-bronze:          #A04000;
+  --sombra-card:         0 2px 8px rgba(0,0,0,0.08);
+  --sombra-hover:        0 4px 16px rgba(0,0,0,0.14);
+  --raio:                10px;
+  --raio-grande:         16px;
+  --fonte-titulo:        'Bebas Neue', sans-serif;
+  --fonte-corpo:         'Inter', sans-serif;
+}
+
+/* Configuração base do body */
+body {
+  font-family: var(--fonte-corpo);
+  background-color: var(--cor-fundo);
+  color: var(--cor-texto);
+  min-height: 100vh;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Links sem sublinhado por padrão */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Botões sem estilo padrão do navegador */
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--fonte-corpo);
+}
+
+/* Inputs e selects com estilo padrão consistente */
+input, select, textarea {
+  font-family: var(--fonte-corpo);
+  font-size: 14px;
+}
+
+/* Classe utilitária para esconder visualmente mas manter acessível */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- COMPONENTES REUTILIZÁVEIS ---- */
+
+/* Card genérico */
+.card {
+  background: var(--cor-fundo-card);
+  border-radius: var(--raio-grande);
+  box-shadow: var(--sombra-card);
+  padding: 1.5rem;
+}
+
+/* Botão primário (vermelho) */
+.btn-primario {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--cor-primaria);
+  color: white;
+  border: none;
+  border-radius: var(--raio);
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+.btn-primario:hover { background: var(--cor-primaria-escura); }
+.btn-primario:active { transform: scale(0.97); }
+
+/* Botão secundário (contorno) */
+.btn-secundario {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: var(--cor-primaria);
+  border: 2px solid var(--cor-primaria);
+  border-radius: var(--raio);
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-secundario:hover {
+  background: var(--cor-primaria);
+  color: white;
+}
+
+/* Botão de perigo (deletar) */
+.btn-perigo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: #E74C3C;
+  border: 1.5px solid #E74C3C;
+  border-radius: var(--raio);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-perigo:hover { background: #E74C3C; color: white; }
+
+/* Botão neutro (editar) */
+.btn-neutro {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--cor-texto-suave);
+  border: 1.5px solid var(--cor-borda);
+  border-radius: var(--raio);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-neutro:hover {
+  background: var(--cor-fundo);
+  border-color: var(--cor-texto-suave);
+  color: var(--cor-texto);
+}
+
+/* Campo de formulário */
+.campo-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.campo-form label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cor-texto);
+}
+.campo-form input,
+.campo-form select,
+.campo-form textarea {
+  border: 1.5px solid var(--cor-borda);
+  border-radius: var(--raio);
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--cor-texto);
+  background: white;
+  transition: border-color 0.2s;
+  outline: none;
+}
+.campo-form input:focus,
+.campo-form select:focus,
+.campo-form textarea:focus {
+  border-color: var(--cor-primaria);
+  box-shadow: 0 0 0 3px rgba(192,57,43,0.1);
+}
+
+/* Badge de medalha */
+.badge-ouro    { background: #FEF9E7; color: #D4AC0D; border: 1px solid #F9E79F; }
+.badge-prata   { background: #F8F9F9; color: #717D7E; border: 1px solid #D5DBDB; }
+.badge-bronze  { background: #FDF2E9; color: #A04000; border: 1px solid #FAD7A0; }
+.badge-participacao { background: #EAF2FF; color: #1A5276; border: 1px solid #AED6F1; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Animação de entrada suave */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+/* Grid responsivo para cards */
+.grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+/* Mensagem de lista vazia */
+.lista-vazia {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--cor-texto-suave);
+}
+.lista-vazia svg {
+  opacity: 0.3;
+  margin-bottom: 1rem;
+}
+.lista-vazia p {
+  font-size: 15px;
+}
+
+/* Scrollbar customizada */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #aaa; }

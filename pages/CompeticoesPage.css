@@ -1,0 +1,172 @@
+/* src/pages/CompeticoesPage.css */
+
+.competicoes-page { max-width: 960px; margin: 0 auto; }
+
+/* Tabela de pontuação */
+.tabela-pontuacao { margin-bottom: 1.5rem; }
+
+.secao-titulo {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--cor-texto-suave);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 1rem;
+}
+
+.pontuacao-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pontuacao-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--cor-fundo);
+  border-radius: var(--raio);
+  font-size: 13px;
+}
+
+.pontuacao-cor {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pontuacao-nome {
+  flex: 1;
+  font-weight: 600;
+}
+
+.pontuacao-valores {
+  display: flex;
+  gap: 12px;
+  color: var(--cor-texto-suave);
+}
+
+.nota-tabela {
+  font-size: 11px;
+  color: var(--cor-texto-suave);
+  margin-top: 10px;
+}
+
+.nota-tabela code {
+  background: var(--cor-fundo);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+/* Lista de competições */
+.competicoes-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.competicao-card {
+  padding: 0;
+  overflow: hidden;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.competicao-card:hover {
+  box-shadow: var(--sombra-hover);
+  transform: translateY(-2px);
+}
+
+.competicao-card.card-excluindo {
+  border: 2px solid #E74C3C;
+}
+
+.competicao-faixa {
+  height: 5px;
+  width: 100%;
+}
+
+.competicao-corpo {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.competicao-tipo-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  width: fit-content;
+}
+
+.competicao-nome {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cor-texto);
+  line-height: 1.3;
+}
+
+.competicao-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--cor-texto-suave);
+}
+
+.competicao-resultados {
+  margin-top: 4px;
+}
+
+.resultados-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cor-primaria);
+}
+
+.competicao-acoes {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.competicao-acoes .btn-neutro,
+.competicao-acoes .btn-perigo {
+  flex: 1;
+  justify-content: center;
+}
+
+/* Preview de pontuação no modal */
+.pontuacao-preview {
+  background: var(--cor-fundo);
+  border-radius: var(--raio);
+  padding: 10px 14px;
+}
+
+.preview-titulo {
+  font-size: 12px;
+  color: var(--cor-texto-suave);
+  margin-bottom: 6px;
+}
+
+.preview-valores {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+/* Reutiliza estilos do AtletasPage.css */
+/* (modal-overlay, modal, campo-form, etc.) */
