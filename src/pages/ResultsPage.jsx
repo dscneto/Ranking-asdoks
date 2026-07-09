@@ -1,66 +1,69 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MODALITIES } from '../data/constants'
-import { db } from '../utils/storage'
-import { getAgeCategoryFromBirthDate, calculateResultPoints, uid } from '../utils/helpers'
+import { competitionsApi, athletesApi, resultsApi } from '../utils/api'
+import { getAgeCategoryFromBirthDate } from '../utils/helpers'
 import { Chip, BeltChip, EmptyState, PageHeader, Button } from '../components/ui'
 import { useToast } from '../context/ToastContext'
 
 export default function ResultsPage() {
   const navigate = useNavigate()
   const { showToast } = useToast()
-  const competitions = db.competitions.getAll().slice().sort((a, b) => new Date(b.date) - new Date(a.date))
-  const athletes = db.athletes.getAll().slice().sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
-
+  const [competitions, setCompetitions] = useState([])
+  const [athletes, setAthletes] = useState([])
   const [competitionId, setCompetitionId] = useState('')
   const [modality, setModality] = useState('')
-  const [entries, setEntries] = useState([]) // [{athleteId, enrolled, placement}]
+  const [entries, setEntries] = useState([])
+  const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  const competition = db.competitions.getById(competitionId)
-  const compType = competition ? db.competitionTypes.getById(competition.competitionTypeId) : null
+  useEffect(() => {
+    Promise.all([competitionsApi.getAll(), athletesApi.getAll()])
+      .then(([c, a]) => { setCompetitions(c); setAthletes(a.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))) })
+      .finally(() => setLoading(false))
+  }, [])
 
-  // Carrega resultados existentes quando muda competição/modalidade
+  const competition = competitions.find(c => c.id === competitionId)
+
   useEffect(() => {
     if (!competitionId || !modality) { setEntries([]); return }
-    const existing = db.results.getAll().filter(r => r.competitionId === competitionId && r.modality === modality)
-    const byAthlete = Object.fromEntries(existing.map(r => [r.athleteId, r]))
-    setEntries(athletes.map(a => ({
-      athleteId: a.id,
-      enrolled: byAthlete[a.id]?.enrolled || false,
-      placement: byAthlete[a.id]?.placement || '',
-    })))
-  }, [competitionId, modality])
+    resultsApi.getByCompetitionAndModality(competitionId, modality).then(existing => {
+      const byAthlete = Object.fromEntries(existing.map(r => [r.athlete_id, r]))
+      setEntries(athletes.map(a => ({ athleteId: a.id, enrolled: byAthlete[a.id]?.enrolled || false, placement: byAthlete[a.id]?.placement || '' })))
+    })
+  }, [competitionId, modality, athletes])
 
-  const updateEntry = (athleteId, patch) => {
-    setEntries(prev => prev.map(e => e.athleteId === athleteId ? { ...e, ...patch } : e))
+  const updateEntry = (athleteId, patch) => setEntries(prev => prev.map(e => e.athleteId === athleteId ? { ...e, ...patch } : e))
+
+  const calcPoints = (entry) => {
+    if (!competition) return 0
+    let pts = 0
+    if (entry.enrolled) pts += competition.points_enrollment || 0
+    if (entry.placement === 'gold')   pts += competition.points_gold   || 0
+    if (entry.placement === 'silver') pts += competition.points_silver || 0
+    if (entry.placement === 'bronze') pts += competition.points_bronze || 0
+    return pts
   }
 
-  const handleSave = () => {
-    if (!competitionId || !modality) return
-    const allResults = db.results.getAll()
-    const others = allResults.filter(r => !(r.competitionId === competitionId && r.modality === modality))
-    const newResults = entries
-      .filter(e => e.enrolled || e.placement)
-      .map(e => {
-        const existing = allResults.find(r => r.athleteId === e.athleteId && r.competitionId === competitionId && r.modality === modality)
-        return { id: existing?.id || uid('result'), createdAt: existing?.createdAt || new Date().toISOString(), ...e, competitionId, modality }
-      })
-    db.results.replaceAll([...others, ...newResults])
-    showToast('Resultados salvos com sucesso.')
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await resultsApi.save(competitionId, modality, entries.map(e => ({ athleteId: e.athleteId, enrolled: e.enrolled, placement: e.placement || null })))
+      showToast('Resultados salvos com sucesso.')
+    } catch (e) { showToast(e.message, 'error') }
+    finally { setSaving(false) }
   }
 
-  if (competitions.length === 0 || athletes.length === 0) {
+  if (loading) return <div className="flex justify-center py-16 text-[#A8AFBC] text-sm">Carregando...</div>
+
+  if (!competitions.length || !athletes.length) {
     return (
-      <EmptyState
-        title="Cadastre atletas e competições primeiro"
-        description="Você precisa de pelo menos um atleta e uma competição para lançar resultados."
-        action={
-          <div className="flex gap-2 justify-center flex-wrap">
-            {athletes.length === 0 && <Button onClick={() => navigate('/atletas')}>Cadastrar Atletas</Button>}
-            {competitions.length === 0 && <Button variant="secondary" onClick={() => navigate('/competicoes')}>Cadastrar Competições</Button>}
-          </div>
-        }
-      />
+      <EmptyState title="Cadastre atletas e competições primeiro" action={
+        <div className="flex gap-2 justify-center flex-wrap">
+          {!athletes.length && <Button onClick={() => navigate('/atletas')}>Cadastrar Atletas</Button>}
+          {!competitions.length && <Button variant="secondary" onClick={() => navigate('/competicoes')}>Cadastrar Competições</Button>}
+        </div>
+      } />
     )
   }
 
@@ -71,55 +74,46 @@ export default function ResultsPage() {
     <div>
       <PageHeader title="Lançar Resultados" description="Escolha a competição e a modalidade para lançar inscrições e colocações." />
 
-      {/* Seletores */}
       <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm p-4 mb-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Competição</label>
             <select className={selectCls} value={competitionId} onChange={e => setCompetitionId(e.target.value)}>
-              <option value="">Selecione a competição</option>
+              <option value="">Selecione</option>
               {competitions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div>
             <label className={labelCls}>Modalidade</label>
             <select className={selectCls} value={modality} onChange={e => setModality(e.target.value)}>
-              <option value="">Selecione a modalidade</option>
+              <option value="">Selecione</option>
               {MODALITIES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
             </select>
           </div>
         </div>
       </div>
 
-      {/* Tabela de atletas */}
-      {competitionId && modality && compType ? (
+      {competitionId && modality && competition ? (
         <>
-          {/* Info da pontuação */}
           <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm px-4 py-3 mb-4 flex flex-wrap gap-2 items-center">
             <span className="text-sm font-semibold text-[#0D1B35]">{competition.name}</span>
-            <span className="text-[#A8AFBC]">·</span>
-            <span className="text-sm text-[#4A5568]">{MODALITIES.find(m => m.id === modality)?.label}</span>
             <div className="ml-auto flex gap-2 flex-wrap">
-              <Chip variant="default">Inscrição: <strong>{compType.points.enrollment}pts</strong></Chip>
-              <Chip variant="gold">🥇 {compType.points.gold}pts</Chip>
-              <Chip variant="silver">🥈 {compType.points.silver}pts</Chip>
-              <Chip variant="bronze">🥉 {compType.points.bronze}pts</Chip>
+              <Chip variant="default">Inscrição: <strong>{competition.points_enrollment}pts</strong></Chip>
+              <Chip variant="gold">🥇 {competition.points_gold}pts</Chip>
+              <Chip variant="silver">🥈 {competition.points_silver}pts</Chip>
+              <Chip variant="bronze">🥉 {competition.points_bronze}pts</Chip>
             </div>
           </div>
 
           <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm overflow-hidden mb-4">
-            {/* Header desktop */}
             <div className="hidden md:grid grid-cols-[2fr_1.5fr_1.5fr_1fr] gap-4 px-4 py-3 border-b border-[#DDE1EA] bg-[#F5F6F8]">
               {['Atleta', 'Inscrito', 'Colocação', 'Pontos'].map(h => (
                 <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">{h}</span>
               ))}
             </div>
-
             {athletes.map((athlete, i, arr) => {
               const entry = entries.find(e => e.athleteId === athlete.id) || { enrolled: false, placement: '' }
-              const ageCategory = getAgeCategoryFromBirthDate(athlete.birthDate)
-              const pts = calculateResultPoints({ enrolled: entry.enrolled, placement: entry.placement || null }, compType)
-
+              const ageCategory = getAgeCategoryFromBirthDate(athlete.birth_date)
               return (
                 <div key={athlete.id} className={`grid grid-cols-1 md:grid-cols-[2fr_1.5fr_1.5fr_1fr] gap-3 md:gap-4 px-4 py-3 ${i < arr.length - 1 ? 'border-b border-[#DDE1EA]' : ''}`}>
                   <div>
@@ -129,36 +123,23 @@ export default function ResultsPage() {
                       <BeltChip beltId={athlete.belt} />
                     </div>
                   </div>
-
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={entry.enrolled}
-                      onChange={e => updateEntry(athlete.id, { enrolled: e.target.checked })}
-                      className="w-4 h-4 accent-[#1B4FA8]"
-                    />
-                    <span className="text-sm text-[#4A5568]">+{compType.points.enrollment}pts</span>
+                    <input type="checkbox" checked={entry.enrolled} onChange={e => updateEntry(athlete.id, { enrolled: e.target.checked })} className="w-4 h-4 accent-[#1B4FA8]" />
+                    <span className="text-sm text-[#4A5568]">+{competition.points_enrollment}pts</span>
                   </label>
-
-                  <select
-                    value={entry.placement}
-                    onChange={e => updateEntry(athlete.id, { placement: e.target.value })}
-                    className="border border-[#C4CADB] rounded-lg px-3 py-2 text-sm bg-white text-[#0D1B35] focus:outline-none focus:border-[#1B4FA8]"
-                  >
+                  <select value={entry.placement} onChange={e => updateEntry(athlete.id, { placement: e.target.value })} className="border border-[#C4CADB] rounded-lg px-3 py-2 text-sm bg-white text-[#0D1B35] focus:outline-none focus:border-[#1B4FA8]">
                     <option value="">Sem colocação</option>
                     <option value="gold">🥇 1º lugar</option>
                     <option value="silver">🥈 2º lugar</option>
                     <option value="bronze">🥉 3º lugar</option>
                   </select>
-
-                  <div className="font-extrabold text-[#1B4FA8] text-sm flex items-center">{pts} pts</div>
+                  <div className="font-extrabold text-[#1B4FA8] text-sm flex items-center">{calcPoints(entry)} pts</div>
                 </div>
               )
             })}
           </div>
-
           <div className="flex justify-end">
-            <Button onClick={handleSave}>Salvar resultados</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? 'Salvando...' : 'Salvar resultados'}</Button>
           </div>
         </>
       ) : (

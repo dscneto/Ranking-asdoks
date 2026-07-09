@@ -1,35 +1,31 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AGE_CATEGORIES, GENDERS, MODALITIES } from '../data/constants'
-import { buildRanking } from '../hooks/useRanking'
-import { db } from '../utils/storage'
+import { rankingApi } from '../utils/api'
 import { getInitials } from '../utils/helpers'
 import { Chip, BeltChip, EmptyState, PageHeader, Button } from '../components/ui'
+import EvaIcon from '../components/ui/EvaIcon'
 
 export default function RankingPage() {
   const navigate = useNavigate()
   const [filters, setFilters] = useState({ gender: '', ageCategoryId: '', modality: '' })
   const [ranking, setRanking] = useState([])
-  const [noAthletes, setNoAthletes] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
-    const r = buildRanking(filters)
-    setRanking(r)
-    setNoAthletes(db.athletes.count() === 0)
+    setLoading(true)
+    setError(null)
+    rankingApi.get(filters)
+      .then(setRanking)
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
   }, [filters])
 
   const hasFilter = filters.gender || filters.ageCategoryId || filters.modality
   const clearFilters = () => setFilters({ gender: '', ageCategoryId: '', modality: '' })
 
-  if (noAthletes) {
-    return (
-      <EmptyState
-        title="Nenhum atleta cadastrado"
-        description="Cadastre atletas e lance resultados de competições para ver o ranking aqui."
-        action={<Button onClick={() => navigate('/atletas')}>Cadastrar Atletas</Button>}
-      />
-    )
-  }
+  const selectCls = "border border-[#C4CADB] rounded-lg px-3 py-2 text-sm bg-white text-[#0D1B35] min-w-[160px] focus:outline-none focus:border-[#1B4FA8]"
 
   return (
     <div>
@@ -40,57 +36,60 @@ export default function RankingPage() {
 
       {/* Filtros */}
       <div className="flex gap-2 flex-wrap mb-5 p-4 bg-white border border-[#DDE1EA] rounded-xl shadow-sm">
-        <select
-          className="border border-[#C4CADB] rounded-lg px-3 py-2 text-sm bg-white text-[#0D1B35] min-w-[160px] focus:outline-none focus:border-[#1B4FA8]"
-          value={filters.gender}
-          onChange={e => setFilters(f => ({ ...f, gender: e.target.value }))}
-        >
+        <select className={selectCls} value={filters.gender} onChange={e => setFilters(f => ({ ...f, gender: e.target.value }))}>
           <option value="">Todos os gêneros</option>
           {GENDERS.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
         </select>
-
-        <select
-          className="border border-[#C4CADB] rounded-lg px-3 py-2 text-sm bg-white text-[#0D1B35] min-w-[160px] focus:outline-none focus:border-[#1B4FA8]"
-          value={filters.ageCategoryId}
-          onChange={e => setFilters(f => ({ ...f, ageCategoryId: e.target.value }))}
-        >
+        <select className={selectCls} value={filters.ageCategoryId} onChange={e => setFilters(f => ({ ...f, ageCategoryId: e.target.value }))}>
           <option value="">Todas as categorias</option>
           {AGE_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
-
-        <select
-          className="border border-[#C4CADB] rounded-lg px-3 py-2 text-sm bg-white text-[#0D1B35] min-w-[180px] focus:outline-none focus:border-[#1B4FA8]"
-          value={filters.modality}
-          onChange={e => setFilters(f => ({ ...f, modality: e.target.value }))}
-        >
+        <select className={`${selectCls} min-w-[180px]`} value={filters.modality} onChange={e => setFilters(f => ({ ...f, modality: e.target.value }))}>
           <option value="">Todas as modalidades</option>
           {MODALITIES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
         </select>
-
-        {hasFilter && (
-          <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar filtros</Button>
-        )}
+        {hasFilter && <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar filtros</Button>}
       </div>
 
-      {/* Lista */}
-      {ranking.length === 0 ? (
-        <EmptyState title="Nenhum atleta encontrado" description="Tente ajustar os filtros." />
-      ) : (
+      {/* Estados */}
+      {loading && (
+        <div className="flex items-center justify-center py-16 text-[#A8AFBC] gap-2">
+          <EvaIcon name="loader-outline" size={20} fill="currentColor" />
+          <span className="text-sm">Carregando ranking...</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">{error}</div>
+      )}
+
+      {!loading && !error && ranking.length === 0 && (
+        <EmptyState
+          title={hasFilter ? 'Nenhum atleta encontrado' : 'Nenhum atleta cadastrado'}
+          description={hasFilter ? 'Tente ajustar os filtros.' : 'Cadastre atletas e lance resultados para ver o ranking.'}
+          action={!hasFilter && <Button onClick={() => navigate('/atletas')}>Cadastrar Atletas</Button>}
+        />
+      )}
+
+      {!loading && !error && ranking.length > 0 && (
         <div className="flex flex-col gap-2">
           {ranking.map((entry, index) => {
             const pos = index + 1
             const isGold = pos === 1
             const isSilver = pos === 2
             const isBronze = pos === 3
-            const genderLabel = GENDERS.find(g => g.id === entry.athlete.gender)?.label || '—'
+            const genderLabel = GENDERS.find(g => g.id === entry.gender)?.label || '—'
+
+            // Calcula categoria de idade a partir da age retornada pelo banco
+            const age = Number(entry.age)
+            const ageCategory = AGE_CATEGORIES.find(c => age >= c.minAge && (c.maxAge === null || age <= c.maxAge))
 
             return (
               <div
-                key={entry.athlete.id}
-                onClick={() => navigate(`/atletas/${entry.athlete.id}`)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={e => e.key === 'Enter' && navigate(`/atletas/${entry.athlete.id}`)}
+                key={entry.id}
+                onClick={() => navigate(`/atletas/${entry.id}`)}
+                role="button" tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && navigate(`/atletas/${entry.id}`)}
                 className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all hover:-translate-y-px shadow-sm
                   ${isGold   ? 'bg-[#FEF3C7] border-[#E9B84A]' : ''}
                   ${isSilver ? 'bg-[#E6EFFC] border-[#B8CEED]' : ''}
@@ -104,22 +103,22 @@ export default function RankingPage() {
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 border-2
                   ${isGold ? 'bg-[#FDE68A] text-[#92610A] border-[#E9B84A]' : 'bg-[#E6EFFC] text-[#1B4FA8] border-[#B8CEED]'}
                 `}>
-                  {getInitials(entry.athlete.name)}
+                  {getInitials(entry.name)}
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-[15px] text-[#0D1B35] truncate">{entry.athlete.name}</div>
+                  <div className="font-bold text-[15px] text-[#0D1B35] truncate">{entry.name}</div>
                   <div className="flex gap-1.5 flex-wrap mt-1">
                     <Chip variant="default">{genderLabel}</Chip>
-                    {entry.ageCategory && <Chip variant="category">{entry.ageCategory.label}</Chip>}
-                    <BeltChip beltId={entry.athlete.belt} />
-                    {entry.competitionsCount > 0 && <Chip variant="default">{entry.competitionsCount} compet.</Chip>}
+                    {ageCategory && <Chip variant="category">{ageCategory.label}</Chip>}
+                    <BeltChip beltId={entry.belt} />
+                    {entry.competitions_count > 0 && <Chip variant="default">{entry.competitions_count} compet.</Chip>}
                   </div>
                 </div>
 
                 <div className="text-right flex-shrink-0">
                   <div className={`text-xl font-extrabold ${isGold ? 'text-[#C9940A]' : 'text-[#1B4FA8]'}`}>
-                    {entry.totalPoints}
+                    {entry.total_points}
                   </div>
                   <div className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">pts</div>
                 </div>
