@@ -26,7 +26,7 @@ export default function AppLayout() {
 
       <div className="flex-1 flex flex-col min-h-screen lg:ml-[252px]">
         <Topbar onMenuClick={() => setSidebarOpen(true)} title={title} />
-        <main className="flex-1 p-4 lg:p-6 max-w-[1200px] w-full">
+        <main className="flex-1 p-6 w-full max-w-full">
           <Outlet />
         </main>
       </div>

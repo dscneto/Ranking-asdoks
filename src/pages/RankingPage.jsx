@@ -72,7 +72,7 @@ export default function RankingPage() {
       )}
 
       {!loading && !error && ranking.length > 0 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 w-full">
           {ranking.map((entry, index) => {
             const pos = index + 1
             const isGold = pos === 1
