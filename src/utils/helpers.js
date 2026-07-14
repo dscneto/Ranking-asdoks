@@ -32,8 +32,11 @@ export function calculateResultPoints(result, competitionType) {
 // ─── Formatação ───────────────────────────────────────────────────────────────
 export function formatDateBR(isoDate) {
   if (!isoDate) return '—'
-  const [y, m, d] = isoDate.split('-')
-  return `${d}/${m}/${y}`
+  const date = new Date(isoDate)
+  const day   = String(date.getUTCDate()).padStart(2, '0')
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const year  = date.getUTCFullYear()
+  return `${day}/${month}/${year}`
 }
 
 export function getInitials(name) {
