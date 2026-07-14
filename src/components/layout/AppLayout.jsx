@@ -24,9 +24,9 @@ export default function AppLayout() {
     <div className="flex min-h-screen bg-[#F5F6F8]">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col min-h-screen lg:ml-[252px]">
+      <div className="flex-1 flex flex-col min-h-screen lg:ml-[220px]">
         <Topbar onMenuClick={() => setSidebarOpen(true)} title={title} />
-        <main className="flex-1 p-6 w-full max-w-full">
+        <main className="flex-1 p-6 w-full">
           <Outlet />
         </main>
       </div>
