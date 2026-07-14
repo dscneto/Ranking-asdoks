@@ -19,36 +19,53 @@ export default function ResultsPage() {
 
   useEffect(() => {
     Promise.all([competitionsApi.getAll(), athletesApi.getAll()])
-      .then(([c, a]) => { setCompetitions(c); setAthletes(a.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))) })
+      .then(([c, a]) => {
+        setCompetitions(c)
+        setAthletes(a.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')))
+      })
       .finally(() => setLoading(false))
   }, [])
 
   const competition = competitions.find(c => c.id === competitionId)
+  const isInscricao = modality === 'inscricao'
 
   useEffect(() => {
     if (!competitionId || !modality) { setEntries([]); return }
     resultsApi.getByCompetitionAndModality(competitionId, modality).then(existing => {
       const byAthlete = Object.fromEntries(existing.map(r => [r.athlete_id, r]))
-      setEntries(athletes.map(a => ({ athleteId: a.id, enrolled: byAthlete[a.id]?.enrolled || false, placement: byAthlete[a.id]?.placement || '' })))
+      setEntries(athletes.map(a => ({
+        athleteId: a.id,
+        enrolled: byAthlete[a.id]?.enrolled || false,
+        placement: byAthlete[a.id]?.placement || '',
+      })))
     })
   }, [competitionId, modality, athletes])
 
-  const updateEntry = (athleteId, patch) => setEntries(prev => prev.map(e => e.athleteId === athleteId ? { ...e, ...patch } : e))
+  const updateEntry = (athleteId, patch) =>
+    setEntries(prev => prev.map(e => e.athleteId === athleteId ? { ...e, ...patch } : e))
 
   const calcPoints = (entry) => {
     if (!competition) return 0
     let pts = 0
-    if (entry.enrolled) pts += competition.points_enrollment || 0
-    if (entry.placement === 'gold')   pts += competition.points_gold   || 0
-    if (entry.placement === 'silver') pts += competition.points_silver || 0
-    if (entry.placement === 'bronze') pts += competition.points_bronze || 0
+    if (isInscricao && entry.enrolled) pts += competition.points_enrollment || 0
+    if (!isInscricao) {
+      if (entry.placement === 'gold')   pts += competition.points_gold   || 0
+      if (entry.placement === 'silver') pts += competition.points_silver || 0
+      if (entry.placement === 'bronze') pts += competition.points_bronze || 0
+    }
     return pts
   }
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      await resultsApi.save(competitionId, modality, entries.map(e => ({ athleteId: e.athleteId, enrolled: e.enrolled, placement: e.placement || null })))
+      await resultsApi.save(competitionId, modality,
+        entries.map(e => ({
+          athleteId: e.athleteId,
+          enrolled: isInscricao ? e.enrolled : false,
+          placement: isInscricao ? null : (e.placement || null),
+        }))
+      )
       showToast('Resultados salvos com sucesso.')
     } catch (e) { showToast(e.message, 'error') }
     finally { setSaving(false) }
@@ -72,8 +89,12 @@ export default function ResultsPage() {
 
   return (
     <div>
-      <PageHeader title="Lançar Resultados" description="Escolha a competição e a modalidade para lançar inscrições e colocações." />
+      <PageHeader
+        title="Lançar Resultados"
+        description="Selecione 'Inscrição' para registrar a participação no evento, ou uma modalidade para registrar colocações."
+      />
 
+      {/* Seletores */}
       <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm p-4 mb-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -93,53 +114,96 @@ export default function ResultsPage() {
         </div>
       </div>
 
+      {/* Tabela */}
       {competitionId && modality && competition ? (
         <>
+          {/* Info da pontuação */}
           <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm px-4 py-3 mb-4 flex flex-wrap gap-2 items-center">
             <span className="text-sm font-semibold text-[#0D1B35]">{competition.name}</span>
+            <span className="text-[#A8AFBC]">·</span>
+            <span className="text-sm text-[#4A5568]">
+              {MODALITIES.find(m => m.id === modality)?.label}
+            </span>
             <div className="ml-auto flex gap-2 flex-wrap">
-              <Chip variant="default">Inscrição: <strong>{competition.points_enrollment}pts</strong></Chip>
-              <Chip variant="gold">🥇 {competition.points_gold}pts</Chip>
-              <Chip variant="silver">🥈 {competition.points_silver}pts</Chip>
-              <Chip variant="bronze">🥉 {competition.points_bronze}pts</Chip>
+              {isInscricao
+                ? <Chip variant="category">Inscrição: <strong>{competition.points_enrollment}pts</strong></Chip>
+                : <>
+                    <Chip variant="gold">🥇 {competition.points_gold}pts</Chip>
+                    <Chip variant="silver">🥈 {competition.points_silver}pts</Chip>
+                    <Chip variant="bronze">🥉 {competition.points_bronze}pts</Chip>
+                  </>
+              }
             </div>
           </div>
 
           <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm overflow-hidden mb-4">
-            <div className="hidden md:grid grid-cols-[2fr_1.5fr_1.5fr_1fr] gap-4 px-4 py-3 border-b border-[#DDE1EA] bg-[#F5F6F8]">
-              {['Atleta', 'Inscrito', 'Colocação', 'Pontos'].map(h => (
-                <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">{h}</span>
-              ))}
+            {/* Header */}
+            <div className="hidden md:grid gap-4 px-4 py-3 border-b border-[#DDE1EA] bg-[#F5F6F8]"
+              style={{ gridTemplateColumns: isInscricao ? '2fr 1fr 1fr' : '2fr 1.5fr 1fr' }}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">Atleta</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">
+                {isInscricao ? 'Inscrito' : 'Colocação'}
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">Pontos</span>
             </div>
+
             {athletes.map((athlete, i, arr) => {
               const entry = entries.find(e => e.athleteId === athlete.id) || { enrolled: false, placement: '' }
               const ageCategory = getAgeCategoryFromBirthDate(athlete.birth_date)
+
               return (
-                <div key={athlete.id} className={`grid grid-cols-1 md:grid-cols-[2fr_1.5fr_1.5fr_1fr] gap-3 md:gap-4 px-4 py-3 ${i < arr.length - 1 ? 'border-b border-[#DDE1EA]' : ''}`}>
+                <div
+                  key={athlete.id}
+                  className="grid gap-3 md:gap-4 px-4 py-3 border-b border-[#DDE1EA] last:border-0"
+                  style={{ gridTemplateColumns: isInscricao ? '2fr 1fr 1fr' : '2fr 1.5fr 1fr' }}
+                >
+                  {/* Atleta */}
                   <div>
                     <div className="font-semibold text-[#0D1B35] text-sm">{athlete.name}</div>
-                    <div className="flex gap-1.5 mt-1">
+                    <div className="flex gap-1.5 mt-1 flex-wrap">
                       {ageCategory && <Chip variant="category">{ageCategory.label}</Chip>}
                       <BeltChip beltId={athlete.belt} />
                     </div>
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={entry.enrolled} onChange={e => updateEntry(athlete.id, { enrolled: e.target.checked })} className="w-4 h-4 accent-[#1B4FA8]" />
-                    <span className="text-sm text-[#4A5568]">+{competition.points_enrollment}pts</span>
-                  </label>
-                  <select value={entry.placement} onChange={e => updateEntry(athlete.id, { placement: e.target.value })} className="border border-[#C4CADB] rounded-lg px-3 py-2 text-sm bg-white text-[#0D1B35] focus:outline-none focus:border-[#1B4FA8]">
-                    <option value="">Sem colocação</option>
-                    <option value="gold">🥇 1º lugar</option>
-                    <option value="silver">🥈 2º lugar</option>
-                    <option value="bronze">🥉 3º lugar</option>
-                  </select>
-                  <div className="font-extrabold text-[#1B4FA8] text-sm flex items-center">{calcPoints(entry)} pts</div>
+
+                  {/* Inscrito OU Colocação */}
+                  {isInscricao ? (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={entry.enrolled}
+                        onChange={e => updateEntry(athlete.id, { enrolled: e.target.checked })}
+                        className="w-4 h-4 accent-[#1B4FA8]"
+                      />
+                      <span className="text-sm text-[#4A5568]">+{competition.points_enrollment}pts</span>
+                    </label>
+                  ) : (
+                    <select
+                      value={entry.placement}
+                      onChange={e => updateEntry(athlete.id, { placement: e.target.value })}
+                      className="border border-[#C4CADB] rounded-lg px-3 py-2 text-sm bg-white text-[#0D1B35] focus:outline-none focus:border-[#1B4FA8]"
+                    >
+                      <option value="">Sem colocação</option>
+                      <option value="gold">🥇 1º lugar</option>
+                      <option value="silver">🥈 2º lugar</option>
+                      <option value="bronze">🥉 3º lugar</option>
+                    </select>
+                  )}
+
+                  {/* Pontos */}
+                  <div className="font-extrabold text-[#1B4FA8] text-sm flex items-center">
+                    {calcPoints(entry)} pts
+                  </div>
                 </div>
               )
             })}
           </div>
+
           <div className="flex justify-end">
-            <Button onClick={handleSave} disabled={saving}>{saving ? 'Salvando...' : 'Salvar resultados'}</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'Salvando...' : 'Salvar resultados'}
+            </Button>
           </div>
         </>
       ) : (

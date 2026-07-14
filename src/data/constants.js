@@ -32,6 +32,7 @@ export const GENDERS = [
 
 // ─── Modalidades ─────────────────────────────────────────────────────────────
 export const MODALITIES = [
+  { id: 'inscricao',                  label: 'Inscrição'                        },
   { id: 'kata_individual',            label: 'Kata Individual'                  },
   { id: 'kata_equipe',                label: 'Kata Equipe'                      },
   { id: 'kumite_individual',          label: 'Kumitê Individual'                },
