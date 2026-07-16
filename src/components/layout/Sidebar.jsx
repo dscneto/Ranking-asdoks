@@ -1,24 +1,36 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import EvaIcon from '../ui/EvaIcon'
+import { useAuth } from '../../context/AuthContext'
 
-const NAV_ITEMS = [
-  { to: '/',              label: 'Ranking',             icon: 'award'       },
-  { to: '/atletas',       label: 'Atletas',             icon: 'people'      },
-  { to: '/competicoes',   label: 'Competições',         icon: 'calendar'    },
-  { to: '/resultados',    label: 'Lançar Resultados',   icon: 'bar-chart-2' },
-  { to: '/tipos',         label: 'Tipos de Competição', icon: 'layers'      },
-  { to: '/configuracoes', label: 'Configurações',       icon: 'settings-2'  },
+const PUBLIC_NAV = [
+  { to: '/',            label: 'Ranking',            icon: 'award'      },
+  { to: '/competicoes', label: 'Competições',         icon: 'calendar'   },
+  { to: '/tipos',       label: 'Tipos de Competição', icon: 'layers'     },
+]
+
+const PRIVATE_NAV = [
+  { to: '/atletas',       label: 'Atletas',           icon: 'people'      },
+  { to: '/resultados',    label: 'Lançar Resultados', icon: 'bar-chart-2' },
+  { to: '/usuarios',      label: 'Usuários',          icon: 'person'      },
+  { to: '/configuracoes', label: 'Configurações',     icon: 'settings-2'  },
 ]
 
 export default function Sidebar({ isOpen, onClose }) {
+  const { isAuth, user, logout } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/')
+    onClose()
+  }
+
+  const navItems = isAuth ? [...PUBLIC_NAV, ...PRIVATE_NAV] : PUBLIC_NAV
+
   return (
     <>
-      {/* Overlay mobile */}
       {isOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-[rgba(13,50,120,0.45)] lg:hidden"
-          onClick={onClose}
-        />
+        <div className="fixed inset-0 z-50 bg-[rgba(13,50,120,0.45)] lg:hidden" onClick={onClose} />
       )}
 
       <aside className={`
@@ -39,18 +51,14 @@ export default function Sidebar({ isOpen, onClose }) {
               <span className="text-white/45 text-[9px] font-bold uppercase tracking-widest">Ranking Karatê</span>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:bg-white/10 transition-colors"
-            aria-label="Fechar menu"
-          >
+          <button onClick={onClose} className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:bg-white/10 transition-colors">
             <EvaIcon name="close" size={18} fill="currentColor" />
           </button>
         </div>
 
         {/* Nav */}
         <nav className="flex-1 px-2 py-3 flex flex-col gap-0.5 overflow-y-auto">
-          {NAV_ITEMS.map(({ to, label, icon }) => (
+          {navItems.map(({ to, label, icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -72,8 +80,31 @@ export default function Sidebar({ isOpen, onClose }) {
         </nav>
 
         {/* Footer */}
-        <div className="px-4 py-4 border-t border-white/10 flex-shrink-0">
-          <p className="text-[10px] text-white/35 leading-snug">Associação Dória de Karatê Shotokan</p>
+        <div className="px-3 py-3 border-t border-white/10 flex-shrink-0">
+          {isAuth ? (
+            <div>
+              <div className="px-3 py-2 mb-1">
+                <p className="text-white/80 text-[12px] font-semibold truncate">{user.name}</p>
+                <p className="text-white/35 text-[10px] truncate">{user.email}</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium text-white/65 hover:bg-white/10 hover:text-white transition-all"
+              >
+                <EvaIcon name="log-out-outline" size={16} fill="currentColor" />
+                Sair
+              </button>
+            </div>
+          ) : (
+            <NavLink
+              to="/login"
+              onClick={onClose}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium text-white/65 hover:bg-white/10 hover:text-white transition-all"
+            >
+              <EvaIcon name="log-in-outline" size={16} fill="currentColor" />
+              Entrar
+            </NavLink>
+          )}
         </div>
       </aside>
     </>
