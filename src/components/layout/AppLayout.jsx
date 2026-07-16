@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
+import { useAuth } from '../../context/AuthContext'
 
 const TITLES = {
   '/':              'Ranking',
@@ -10,10 +11,12 @@ const TITLES = {
   '/resultados':    'Lançar Resultados',
   '/tipos':         'Tipos de Competição',
   '/configuracoes': 'Configurações',
+  '/usuarios':      'Usuários',
 }
 
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { loading } = useAuth()
   const location = useLocation()
 
   const title = Object.entries(TITLES)
@@ -27,7 +30,13 @@ export default function AppLayout() {
       <div className="flex-1 flex flex-col min-h-screen lg:ml-[220px]">
         <Topbar onMenuClick={() => setSidebarOpen(true)} title={title} />
         <main className="flex-1 p-6 w-full">
-          <Outlet />
+          {loading ? (
+            <div className="flex justify-center py-16 text-[#A8AFBC] text-sm">
+              Carregando...
+            </div>
+          ) : (
+            <Outlet />
+          )}
         </main>
       </div>
     </div>
