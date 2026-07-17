@@ -39,7 +39,7 @@ export default function App() {
 
             {/* Protegidas — redireciona para login se não autenticado */}
             <Route path="atletas" element={<PrivateRoute><AthletesPage /></PrivateRoute>} />
-            <Route path="atletas/:id" element={<PrivateRoute><AthleteDetailPage /></PrivateRoute>} />
+            <Route path="atletas/:id" element={<AthleteDetailPage />} />
             <Route path="resultados" element={<PrivateRoute><ResultsPage /></PrivateRoute>} />
             <Route path="configuracoes" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
             <Route path="usuarios" element={<PrivateRoute><UsersPage /></PrivateRoute>} />
