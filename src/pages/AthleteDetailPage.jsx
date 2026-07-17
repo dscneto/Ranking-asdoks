@@ -37,7 +37,10 @@ export default function AthleteDetailPage() {
   const ageCategory = AGE_CATEGORIES.find(c => age >= c.minAge && (c.maxAge === null || age <= c.maxAge))
 
   // Visitantes veem só o primeiro nome
-  const displayName = isAuth ? athlete.name : athlete.name.split(' ')[0]
+  const parts = athlete.name.trim().split(/\s+/)
+  const displayName = isAuth
+    ? athlete.name
+    : `${parts[0]} ${parts[parts.length - 1]}`
 
   return (
     <div>
