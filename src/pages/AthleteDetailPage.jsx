@@ -40,7 +40,7 @@ export default function AthleteDetailPage() {
   const parts = athlete.name.trim().split(/\s+/)
   const displayName = isAuth
     ? athlete.name
-    : `${parts[0]} ${parts[parts.length - 1]}`
+    : parts.length >= 2 ? `${parts[0]} ${parts[1]}` : parts[0]
 
   return (
     <div>

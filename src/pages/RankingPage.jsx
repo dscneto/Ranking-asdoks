@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 import { AGE_CATEGORIES, GENDERS, MODALITIES } from '../data/constants'
 import { rankingApi } from '../utils/api'
 import { getInitials } from '../utils/helpers'
@@ -8,6 +9,7 @@ import EvaIcon from '../components/ui/EvaIcon'
 
 export default function RankingPage() {
   const navigate = useNavigate()
+  const { isAuth } = useAuth()
   const [filters, setFilters] = useState({ gender: '', ageCategoryId: '', modality: '' })
   const [ranking, setRanking] = useState([])
   const [loading, setLoading] = useState(true)
@@ -107,7 +109,12 @@ export default function RankingPage() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-[15px] text-[#0D1B35] truncate">{entry.name}</div>
+                  <div className="font-bold text-[15px] text-[#0D1B35] truncate">
+                    {(() => {
+                      const parts = entry.name.trim().split(/\s+/)
+                      return isAuth ? entry.name : parts.length >= 2 ? `${parts[0]} ${parts[1]}` : parts[0]
+                      })()}
+                  </div>
                   <div className="flex gap-1.5 flex-wrap mt-1">
                     <Chip variant="default">{genderLabel}</Chip>
                     {ageCategory && <Chip variant="category">{ageCategory.label}</Chip>}
