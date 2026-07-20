@@ -1,21 +1,24 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MODALITIES } from '../data/constants'
-import { competitionsApi, athletesApi, resultsApi } from '../utils/api'
+import { competitionsApi, athletesApi } from '../utils/api'
+import { offlineWrite } from '../hooks/useOfflineData'
 import { getAgeCategoryFromBirthDate } from '../utils/helpers'
 import { Chip, BeltChip, EmptyState, PageHeader, Button } from '../components/ui'
 import { useToast } from '../context/ToastContext'
+import { useSyncStatus } from '../context/SyncContext'
 
 export default function ResultsPage() {
   const navigate = useNavigate()
   const { showToast } = useToast()
+  const { refreshPendingCount } = useSyncStatus()
   const [competitions, setCompetitions] = useState([])
-  const [athletes, setAthletes] = useState([])
+  const [athletes, setAthletes]         = useState([])
   const [competitionId, setCompetitionId] = useState('')
-  const [modality, setModality] = useState('')
-  const [entries, setEntries] = useState([])
-  const [saving, setSaving] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [modality, setModality]           = useState('')
+  const [entries, setEntries]             = useState([])
+  const [saving, setSaving]               = useState(false)
+  const [loading, setLoading]             = useState(true)
 
   useEffect(() => {
     Promise.all([competitionsApi.getAll(), athletesApi.getAll()])
@@ -31,14 +34,23 @@ export default function ResultsPage() {
 
   useEffect(() => {
     if (!competitionId || !modality) { setEntries([]); return }
-    resultsApi.getByCompetitionAndModality(competitionId, modality).then(existing => {
-      const byAthlete = Object.fromEntries(existing.map(r => [r.athlete_id, r]))
-      setEntries(athletes.map(a => ({
-        athleteId: a.id,
-        enrolled: byAthlete[a.id]?.enrolled || false,
-        placement: byAthlete[a.id]?.placement || '',
-      })))
-    })
+
+    const loadEntries = async () => {
+      try {
+        const { resultsApi } = await import('../utils/api')
+        const existing = await resultsApi.getByCompetitionAndModality(competitionId, modality)
+        const byAthlete = Object.fromEntries(existing.map(r => [r.athlete_id, r]))
+        setEntries(athletes.map(a => ({
+          athleteId: a.id,
+          enrolled:  byAthlete[a.id]?.enrolled  || false,
+          placement: byAthlete[a.id]?.placement || '',
+        })))
+      } catch {
+        // Offline — entradas vazias
+        setEntries(athletes.map(a => ({ athleteId: a.id, enrolled: false, placement: '' })))
+      }
+    }
+    loadEntries()
   }, [competitionId, modality, athletes])
 
   const updateEntry = (athleteId, patch) =>
@@ -59,14 +71,22 @@ export default function ResultsPage() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await resultsApi.save(competitionId, modality,
-        entries.map(e => ({
+      const payload = {
+        competitionId,
+        modality,
+        entries: entries.map(e => ({
           athleteId: e.athleteId,
-          enrolled: isInscricao ? e.enrolled : false,
+          enrolled:  isInscricao ? e.enrolled : false,
           placement: isInscricao ? null : (e.placement || null),
-        }))
+        })),
+      }
+
+      await offlineWrite('POST', '/results/save', payload)
+      showToast(navigator.onLine
+        ? 'Resultados salvos com sucesso.'
+        : 'Salvo offline. Será sincronizado ao reconectar.'
       )
-      showToast('Resultados salvos com sucesso.')
+      await refreshPendingCount()
     } catch (e) { showToast(e.message, 'error') }
     finally { setSaving(false) }
   }
@@ -85,16 +105,15 @@ export default function ResultsPage() {
   }
 
   const selectCls = "border border-[#C4CADB] rounded-lg px-3 py-2.5 text-sm bg-white text-[#0D1B35] focus:outline-none focus:border-[#1B4FA8] w-full"
-  const labelCls = "block text-[11px] font-bold uppercase tracking-wider text-[#A8AFBC] mb-1"
+  const labelCls  = "block text-[11px] font-bold uppercase tracking-wider text-[#A8AFBC] mb-1"
 
   return (
     <div>
       <PageHeader
         title="Lançar Resultados"
-        description="Selecione 'Inscrição' para registrar a participação no evento, ou uma modalidade para registrar colocações."
+        description="Selecione 'Inscrição' para registrar participação, ou uma modalidade para registrar colocações."
       />
 
-      {/* Seletores */}
       <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm p-4 mb-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -114,16 +133,12 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* Tabela */}
       {competitionId && modality && competition ? (
         <>
-          {/* Info da pontuação */}
           <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm px-4 py-3 mb-4 flex flex-wrap gap-2 items-center">
             <span className="text-sm font-semibold text-[#0D1B35]">{competition.name}</span>
             <span className="text-[#A8AFBC]">·</span>
-            <span className="text-sm text-[#4A5568]">
-              {MODALITIES.find(m => m.id === modality)?.label}
-            </span>
+            <span className="text-sm text-[#4A5568]">{MODALITIES.find(m => m.id === modality)?.label}</span>
             <div className="ml-auto flex gap-2 flex-wrap">
               {isInscricao
                 ? <Chip variant="category">Inscrição: <strong>{competition.points_enrollment}pts</strong></Chip>
@@ -137,19 +152,17 @@ export default function ResultsPage() {
           </div>
 
           <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm overflow-hidden mb-4">
-            {/* Header */}
-            <div className="hidden md:grid gap-4 px-4 py-3 border-b border-[#DDE1EA] bg-[#F5F6F8]"
+            <div
+              className="hidden md:grid gap-4 px-4 py-3 border-b border-[#DDE1EA] bg-[#F5F6F8]"
               style={{ gridTemplateColumns: isInscricao ? '2fr 1fr 1fr' : '2fr 1.5fr 1fr' }}
             >
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">Atleta</span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">
-                {isInscricao ? 'Inscrito' : 'Colocação'}
-              </span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">Pontos</span>
+              {['Atleta', isInscricao ? 'Inscrito' : 'Colocação', 'Pontos'].map(h => (
+                <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">{h}</span>
+              ))}
             </div>
 
             {athletes.map((athlete, i, arr) => {
-              const entry = entries.find(e => e.athleteId === athlete.id) || { enrolled: false, placement: '' }
+              const entry       = entries.find(e => e.athleteId === athlete.id) || { enrolled: false, placement: '' }
               const ageCategory = getAgeCategoryFromBirthDate(athlete.birth_date)
 
               return (
@@ -158,7 +171,6 @@ export default function ResultsPage() {
                   className="grid gap-3 md:gap-4 px-4 py-3 border-b border-[#DDE1EA] last:border-0"
                   style={{ gridTemplateColumns: isInscricao ? '2fr 1fr 1fr' : '2fr 1.5fr 1fr' }}
                 >
-                  {/* Atleta */}
                   <div>
                     <div className="font-semibold text-[#0D1B35] text-sm">{athlete.name}</div>
                     <div className="flex gap-1.5 mt-1 flex-wrap">
@@ -167,7 +179,6 @@ export default function ResultsPage() {
                     </div>
                   </div>
 
-                  {/* Inscrito OU Colocação */}
                   {isInscricao ? (
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -191,7 +202,6 @@ export default function ResultsPage() {
                     </select>
                   )}
 
-                  {/* Pontos */}
                   <div className="font-extrabold text-[#1B4FA8] text-sm flex items-center">
                     {calcPoints(entry)} pts
                   </div>

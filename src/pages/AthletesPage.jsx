@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GENDERS, BELTS } from '../data/constants'
-import { athletesApi, trainingUnitsApi } from '../utils/api'
+import { athletesApi } from '../utils/api'
+import { offlineWrite } from '../hooks/useOfflineData'
+import { putItem, deleteItem } from '../services/indexedDB'
 import { getAgeCategoryFromBirthDate } from '../utils/helpers'
 import { Button, Chip, BeltChip, EmptyState, PageHeader } from '../components/ui'
 import Modal from '../components/ui/Modal'
 import { useToast } from '../context/ToastContext'
+import { useSyncStatus } from '../context/SyncContext'
 import EvaIcon from '../components/ui/EvaIcon'
 
 function AthleteForm({ initial, units, onSave, onCancel, loading }) {
@@ -76,17 +79,21 @@ function AthleteForm({ initial, units, onSave, onCancel, loading }) {
 export default function AthletesPage() {
   const navigate = useNavigate()
   const { showToast } = useToast()
+  const { refreshPendingCount } = useSyncStatus()
   const [athletes, setAthletes] = useState([])
-  const [units, setUnits] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [modal, setModal] = useState(null)
+  const [units, setUnits]       = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [saving, setSaving]     = useState(false)
+  const [modal, setModal]       = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [a, u] = await Promise.all([athletesApi.getAll(), trainingUnitsApi.getAll()])
+    const [a, u] = await Promise.all([athletesApi.getAll(), athletesApi.getAll()])
     setAthletes(a)
-    setUnits(u)
+    // Busca unidades separado
+    const { trainingUnitsApi } = await import('../utils/api')
+    const unitsList = await trainingUnitsApi.getAll()
+    setUnits(unitsList)
     setLoading(false)
   }, [])
 
@@ -95,18 +102,44 @@ export default function AthletesPage() {
   const handleSave = async (form) => {
     setSaving(true)
     try {
-      const payload = { name: form.name, gender: form.gender, birth_date: form.birthDate, belt: form.belt, training_unit_id: form.trainingUnitId }
-      if (modal.mode === 'edit') { await athletesApi.update(modal.athlete.id, payload); showToast('Atleta atualizado.') }
-      else { await athletesApi.create(payload); showToast('Atleta cadastrado.') }
-      setModal(null); load()
+      const payload = {
+        name: form.name,
+        gender: form.gender,
+        birth_date: form.birthDate,
+        belt: form.belt,
+        training_unit_id: form.trainingUnitId,
+      }
+
+      if (modal.mode === 'edit') {
+        await offlineWrite('PUT', `/athletes/${modal.athlete.id}`, payload,
+          () => putItem('athletes', { ...modal.athlete, ...payload })
+        )
+        showToast(navigator.onLine ? 'Atleta atualizado.' : 'Salvo offline. Será sincronizado em breve.')
+      } else {
+        const tempId = `temp_${Date.now()}`
+        await offlineWrite('POST', '/athletes', payload,
+          () => putItem('athletes', { id: tempId, ...payload })
+        )
+        showToast(navigator.onLine ? 'Atleta cadastrado.' : 'Salvo offline. Será sincronizado em breve.')
+      }
+
+      await refreshPendingCount()
+      setModal(null)
+      load()
     } catch (e) { showToast(e.message, 'error') }
     finally { setSaving(false) }
   }
 
   const handleDelete = async (athlete) => {
     if (!confirm(`Excluir "${athlete.name}"?`)) return
-    try { await athletesApi.remove(athlete.id); showToast('Atleta excluído.'); load() }
-    catch (e) { showToast(e.message, 'error') }
+    try {
+      await offlineWrite('DELETE', `/athletes/${athlete.id}`, null,
+        () => deleteItem('athletes', athlete.id)
+      )
+      showToast(navigator.onLine ? 'Atleta excluído.' : 'Exclusão salva offline. Será sincronizada em breve.')
+      await refreshPendingCount()
+      load()
+    } catch (e) { showToast(e.message, 'error') }
   }
 
   if (loading) return <div className="flex justify-center py-16 text-[#A8AFBC] text-sm">Carregando...</div>
@@ -128,19 +161,24 @@ export default function AthletesPage() {
               <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">{h}</span>
             ))}
           </div>
-          {athletes.map((athlete, i, arr) => {
+          {athletes.slice().sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map((athlete, i, arr) => {
             const genderLabel = GENDERS.find(g => g.id === athlete.gender)?.label || '—'
             const ageCategory = getAgeCategoryFromBirthDate(athlete.birth_date)
+            const unit = units.find(u => u.id === athlete.training_unit_id)
             return (
               <div key={athlete.id} className={`grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-2 md:gap-4 px-4 py-3 ${i < arr.length - 1 ? 'border-b border-[#DDE1EA]' : ''}`}>
                 <button onClick={() => navigate(`/atletas/${athlete.id}`)} className="text-left font-semibold text-[#0D1B35] hover:text-[#1B4FA8] transition-colors">{athlete.name}</button>
                 <div className="flex items-center"><Chip variant="default">{genderLabel}</Chip></div>
                 <div className="flex items-center">{ageCategory ? <Chip variant="category">{ageCategory.label}</Chip> : '—'}</div>
                 <div className="flex items-center"><BeltChip beltId={athlete.belt} /></div>
-                <div className="flex items-center text-sm text-[#4A5568]">{athlete.training_unit_label || '—'}</div>
+                <div className="flex items-center text-sm text-[#4A5568]">{unit?.label || athlete.training_unit_label || '—'}</div>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => setModal({ mode: 'edit', athlete })} className="p-1.5 rounded-lg text-[#A8AFBC] hover:text-[#1B4FA8] hover:bg-[#E6EFFC] transition-colors"><EvaIcon name="edit-2-outline" size={16} fill="currentColor" /></button>
-                  <button onClick={() => handleDelete(athlete)} className="p-1.5 rounded-lg text-[#A8AFBC] hover:text-red-600 hover:bg-red-50 transition-colors"><EvaIcon name="trash-2-outline" size={16} fill="currentColor" /></button>
+                  <button onClick={() => setModal({ mode: 'edit', athlete })} className="p-1.5 rounded-lg text-[#A8AFBC] hover:text-[#1B4FA8] hover:bg-[#E6EFFC] transition-colors">
+                    <EvaIcon name="edit-2-outline" size={16} fill="currentColor" />
+                  </button>
+                  <button onClick={() => handleDelete(athlete)} className="p-1.5 rounded-lg text-[#A8AFBC] hover:text-red-600 hover:bg-red-50 transition-colors">
+                    <EvaIcon name="trash-2-outline" size={16} fill="currentColor" />
+                  </button>
                 </div>
               </div>
             )

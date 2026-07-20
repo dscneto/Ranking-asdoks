@@ -48,6 +48,7 @@ router.put   ('/training-units/:id', protect, trainingUnits.update)
 router.delete('/training-units/:id', protect, trainingUnits.remove)
 
 // ─── Resultados & Ranking ─────────────────────────────────────────────────────
+router.get ('/results/all', results.getAll)
 router.get ('/results',       protect, results.getByCompetitionAndModality)
 router.post('/results/save',  protect, results.saveResults)
 router.get ('/ranking',       results.getRanking)

@@ -155,3 +155,27 @@ export async function getAthleteHistory(req, res) {
   const totalPoints = rows.reduce((sum, r) => sum + Number(r.points), 0)
   res.json({ results: rows, totalPoints })
 }
+
+// GET /api/results/all — retorna todos os resultados para cache offline
+export async function getAll(req, res) {
+  const { rows } = await pool.query(
+    `SELECT r.*,
+            c.name  AS competition_name,
+            c.date  AS competition_date,
+            ct.label AS competition_type_label,
+            (
+              CASE WHEN r.enrolled THEN ct.points_enrollment ELSE 0 END +
+              CASE r.placement
+                WHEN 'gold'   THEN ct.points_gold
+                WHEN 'silver' THEN ct.points_silver
+                WHEN 'bronze' THEN ct.points_bronze
+                ELSE 0
+              END
+            ) AS points
+     FROM results r
+     JOIN competitions c ON r.competition_id = c.id
+     JOIN competition_types ct ON c.competition_type_id = ct.id
+     ORDER BY c.date DESC`
+  )
+  res.json(rows)
+}
