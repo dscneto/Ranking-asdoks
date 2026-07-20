@@ -1,11 +1,32 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
 import { AGE_CATEGORIES, GENDERS, MODALITIES } from '../data/constants'
 import { rankingApi } from '../utils/api'
+import { getAll } from '../services/indexedDB'
 import { getInitials } from '../utils/helpers'
+import { useAuth } from '../context/AuthContext'
 import { Chip, BeltChip, EmptyState, PageHeader, Button } from '../components/ui'
 import EvaIcon from '../components/ui/EvaIcon'
+
+function calcTotalPoints(athlete, results, competitionTypes, competitions, modalityFilter) {
+  const compTypeById = Object.fromEntries(competitionTypes.map(t => [t.id, t]))
+  const compById     = Object.fromEntries(competitions.map(c => [c.id, c]))
+
+  return results
+    .filter(r => r.athlete_id === athlete.id && (!modalityFilter || r.modality === modalityFilter))
+    .reduce((sum, r) => {
+      const comp = compById[r.competition_id]
+      if (!comp) return sum
+      const type = compTypeById[comp.competition_type_id]
+      if (!type) return sum
+      let pts = 0
+      if (r.enrolled) pts += type.points_enrollment || 0
+      if (r.placement === 'gold')   pts += type.points_gold   || 0
+      if (r.placement === 'silver') pts += type.points_silver || 0
+      if (r.placement === 'bronze') pts += type.points_bronze || 0
+      return sum + pts
+    }, 0)
+}
 
 export default function RankingPage() {
   const navigate = useNavigate()
@@ -13,21 +34,74 @@ export default function RankingPage() {
   const [filters, setFilters] = useState({ gender: '', ageCategoryId: '', modality: '' })
   const [ranking, setRanking] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError]     = useState(null)
 
   useEffect(() => {
     setLoading(true)
     setError(null)
-    rankingApi.get(filters)
-      .then(setRanking)
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
+
+    const load = async () => {
+      if (navigator.onLine) {
+        // Online — busca da API
+        try {
+          const data = await rankingApi.get(filters)
+          setRanking(data)
+        } catch (e) {
+          setError(e.message)
+        }
+      } else {
+        // Offline — calcula ranking a partir do IndexedDB
+        try {
+          const [athletes, results, competitions, competitionTypes] = await Promise.all([
+            getAll('athletes'),
+            getAll('results'),
+            getAll('competitions'),
+            getAll('competitionTypes'),
+          ])
+
+          let filtered = athletes
+          if (filters.gender) {
+            filtered = filtered.filter(a => a.gender === filters.gender)
+          }
+          if (filters.ageCategoryId) {
+            filtered = filtered.filter(a => {
+              const age = new Date().getFullYear() - new Date(a.birth_date).getFullYear()
+              const cat = AGE_CATEGORIES.find(c => c.id === filters.ageCategoryId)
+              return cat && age >= cat.minAge && (cat.maxAge === null || age <= cat.maxAge)
+            })
+          }
+
+          const ranked = filtered.map(athlete => {
+            const age = new Date().getFullYear() - new Date(athlete.birth_date).getFullYear()
+            const ageCategory = AGE_CATEGORIES.find(c => age >= c.minAge && (c.maxAge === null || age <= c.maxAge))
+            const totalPoints = calcTotalPoints(athlete, results, competitionTypes, competitions, filters.modality)
+            const competitionsCount = new Set(
+              results.filter(r => r.athlete_id === athlete.id).map(r => r.competition_id)
+            ).size
+
+            return {
+              ...athlete,
+              age,
+              total_points: totalPoints,
+              competitions_count: competitionsCount,
+              ageCategory,
+            }
+          }).sort((a, b) => b.total_points - a.total_points)
+
+          setRanking(ranked)
+        } catch (e) {
+          setError(e.message)
+        }
+      }
+      setLoading(false)
+    }
+
+    load()
   }, [filters])
 
-  const hasFilter = filters.gender || filters.ageCategoryId || filters.modality
+  const hasFilter   = filters.gender || filters.ageCategoryId || filters.modality
   const clearFilters = () => setFilters({ gender: '', ageCategoryId: '', modality: '' })
-
-  const selectCls = "border border-[#C4CADB] rounded-lg px-3 py-2 text-sm bg-white text-[#0D1B35] min-w-[160px] focus:outline-none focus:border-[#1B4FA8]"
+  const selectCls   = "border border-[#C4CADB] rounded-lg px-3 py-2 text-sm bg-white text-[#0D1B35] min-w-[160px] focus:outline-none focus:border-[#1B4FA8]"
 
   return (
     <div>
@@ -36,7 +110,6 @@ export default function RankingPage() {
         description="Pontuação acumulada por inscrições e colocações em todas as competições."
       />
 
-      {/* Filtros */}
       <div className="flex gap-2 flex-wrap mb-5 p-4 bg-white border border-[#DDE1EA] rounded-xl shadow-sm">
         <select className={selectCls} value={filters.gender} onChange={e => setFilters(f => ({ ...f, gender: e.target.value }))}>
           <option value="">Todos os gêneros</option>
@@ -53,7 +126,6 @@ export default function RankingPage() {
         {hasFilter && <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar filtros</Button>}
       </div>
 
-      {/* Estados */}
       {loading && (
         <div className="flex items-center justify-center py-16 text-[#A8AFBC] gap-2">
           <EvaIcon name="loader-outline" size={20} fill="currentColor" />
@@ -74,17 +146,17 @@ export default function RankingPage() {
       )}
 
       {!loading && !error && ranking.length > 0 && (
-        <div className="flex flex-col gap-2 w-full">
+        <div className="flex flex-col gap-2">
           {ranking.map((entry, index) => {
-            const pos = index + 1
-            const isGold = pos === 1
+            const pos      = index + 1
+            const isGold   = pos === 1
             const isSilver = pos === 2
             const isBronze = pos === 3
             const genderLabel = GENDERS.find(g => g.id === entry.gender)?.label || '—'
-
-            // Calcula categoria de idade a partir da age retornada pelo banco
             const age = Number(entry.age)
-            const ageCategory = AGE_CATEGORIES.find(c => age >= c.minAge && (c.maxAge === null || age <= c.maxAge))
+            const ageCategory = entry.ageCategory || AGE_CATEGORIES.find(c => age >= c.minAge && (c.maxAge === null || age <= c.maxAge))
+            const parts = entry.name.trim().split(/\s+/)
+            const displayName = isAuth ? entry.name : (parts.length >= 2 ? `${parts[0]} ${parts[1]}` : parts[0])
 
             return (
               <div
@@ -109,12 +181,7 @@ export default function RankingPage() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-[15px] text-[#0D1B35] truncate">
-                    {(() => {
-                      const parts = entry.name.trim().split(/\s+/)
-                      return isAuth ? entry.name : parts.length >= 2 ? `${parts[0]} ${parts[1]}` : parts[0]
-                      })()}
-                  </div>
+                  <div className="font-bold text-[15px] text-[#0D1B35] truncate">{displayName}</div>
                   <div className="flex gap-1.5 flex-wrap mt-1">
                     <Chip variant="default">{genderLabel}</Chip>
                     {ageCategory && <Chip variant="category">{ageCategory.label}</Chip>}
