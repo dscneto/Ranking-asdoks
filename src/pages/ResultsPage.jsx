@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { MODALITIES } from '../data/constants'
-import { competitionsApi, athletesApi } from '../utils/api'
+import { competitionsApi, athletesApi, resultsApi } from '../utils/api'
+import { getAll } from '../services/indexedDB'
 import { offlineWrite } from '../hooks/useOfflineData'
 import { getAgeCategoryFromBirthDate } from '../utils/helpers'
 import { Chip, BeltChip, EmptyState, PageHeader, Button } from '../components/ui'
@@ -9,7 +9,6 @@ import { useToast } from '../context/ToastContext'
 import { useSyncStatus } from '../context/SyncContext'
 
 export default function ResultsPage() {
-  const navigate = useNavigate()
   const { showToast } = useToast()
   const { refreshPendingCount } = useSyncStatus()
   const [competitions, setCompetitions] = useState([])
@@ -21,12 +20,25 @@ export default function ResultsPage() {
   const [loading, setLoading]             = useState(true)
 
   useEffect(() => {
-    Promise.all([competitionsApi.getAll(), athletesApi.getAll()])
-      .then(([c, a]) => {
-        setCompetitions(c)
-        setAthletes(a.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')))
-      })
-      .finally(() => setLoading(false))
+    const load = async () => {
+      setLoading(true)
+      try {
+        if (navigator.onLine) {
+          const [c, a] = await Promise.all([competitionsApi.getAll(), athletesApi.getAll()])
+          setCompetitions(c)
+          setAthletes(a.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')))
+        } else {
+          const [c, a] = await Promise.all([getAll('competitions'), getAll('athletes')])
+          setCompetitions(c.sort((a, b) => new Date(b.date) - new Date(a.date)))
+          setAthletes(a.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')))
+        }
+      } catch (e) {
+        showToast(e.message, 'error')
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
   }, [])
 
   const competition = competitions.find(c => c.id === competitionId)
@@ -37,16 +49,25 @@ export default function ResultsPage() {
 
     const loadEntries = async () => {
       try {
-        const { resultsApi } = await import('../utils/api')
-        const existing = await resultsApi.getByCompetitionAndModality(competitionId, modality)
-        const byAthlete = Object.fromEntries(existing.map(r => [r.athlete_id, r]))
-        setEntries(athletes.map(a => ({
-          athleteId: a.id,
-          enrolled:  byAthlete[a.id]?.enrolled  || false,
-          placement: byAthlete[a.id]?.placement || '',
-        })))
+        if (navigator.onLine) {
+          const existing  = await resultsApi.getByCompetitionAndModality(competitionId, modality)
+          const byAthlete = Object.fromEntries(existing.map(r => [r.athlete_id, r]))
+          setEntries(athletes.map(a => ({
+            athleteId: a.id,
+            enrolled:  byAthlete[a.id]?.enrolled  || false,
+            placement: byAthlete[a.id]?.placement || '',
+          })))
+        } else {
+          const allResults = await getAll('results')
+          const existing   = allResults.filter(r => r.competition_id === competitionId && r.modality === modality)
+          const byAthlete  = Object.fromEntries(existing.map(r => [r.athlete_id, r]))
+          setEntries(athletes.map(a => ({
+            athleteId: a.id,
+            enrolled:  byAthlete[a.id]?.enrolled  || false,
+            placement: byAthlete[a.id]?.placement || '',
+          })))
+        }
       } catch {
-        // Offline — entradas vazias
         setEntries(athletes.map(a => ({ athleteId: a.id, enrolled: false, placement: '' })))
       }
     }
@@ -80,7 +101,6 @@ export default function ResultsPage() {
           placement: isInscricao ? null : (e.placement || null),
         })),
       }
-
       await offlineWrite('POST', '/results/save', payload)
       showToast(navigator.onLine
         ? 'Resultados salvos com sucesso.'
@@ -95,12 +115,10 @@ export default function ResultsPage() {
 
   if (!competitions.length || !athletes.length) {
     return (
-      <EmptyState title="Cadastre atletas e competições primeiro" action={
-        <div className="flex gap-2 justify-center flex-wrap">
-          {!athletes.length && <Button onClick={() => navigate('/atletas')}>Cadastrar Atletas</Button>}
-          {!competitions.length && <Button variant="secondary" onClick={() => navigate('/competicoes')}>Cadastrar Competições</Button>}
-        </div>
-      } />
+      <EmptyState
+        title="Nenhum dado disponível offline"
+        description="Conecte-se à internet para carregar as competições e atletas."
+      />
     )
   }
 
@@ -161,10 +179,9 @@ export default function ResultsPage() {
               ))}
             </div>
 
-            {athletes.map((athlete, i, arr) => {
+            {athletes.map((athlete) => {
               const entry       = entries.find(e => e.athleteId === athlete.id) || { enrolled: false, placement: '' }
               const ageCategory = getAgeCategoryFromBirthDate(athlete.birth_date)
-
               return (
                 <div
                   key={athlete.id}

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GENDERS, BELTS } from '../data/constants'
-import { athletesApi } from '../utils/api'
+import { athletesApi, trainingUnitsApi } from '../utils/api'
+import { getAll, putItem, deleteItem } from '../services/indexedDB'
 import { offlineWrite } from '../hooks/useOfflineData'
-import { putItem, deleteItem } from '../services/indexedDB'
 import { getAgeCategoryFromBirthDate } from '../utils/helpers'
 import { Button, Chip, BeltChip, EmptyState, PageHeader } from '../components/ui'
 import Modal from '../components/ui/Modal'
@@ -13,10 +13,10 @@ import EvaIcon from '../components/ui/EvaIcon'
 
 function AthleteForm({ initial, units, onSave, onCancel, loading }) {
   const [form, setForm] = useState({
-    name: initial?.name || '',
-    gender: initial?.gender || '',
-    birthDate: initial?.birth_date || '',
-    belt: initial?.belt || '',
+    name:           initial?.name             || '',
+    gender:         initial?.gender           || '',
+    birthDate:      initial?.birth_date       || '',
+    belt:           initial?.belt             || '',
     trainingUnitId: initial?.training_unit_id || '',
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -88,13 +88,21 @@ export default function AthletesPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [a, u] = await Promise.all([athletesApi.getAll(), athletesApi.getAll()])
-    setAthletes(a)
-    // Busca unidades separado
-    const { trainingUnitsApi } = await import('../utils/api')
-    const unitsList = await trainingUnitsApi.getAll()
-    setUnits(unitsList)
-    setLoading(false)
+    try {
+      if (navigator.onLine) {
+        const [a, u] = await Promise.all([athletesApi.getAll(), trainingUnitsApi.getAll()])
+        setAthletes(a)
+        setUnits(u)
+      } else {
+        const [a, u] = await Promise.all([getAll('athletes'), getAll('trainingUnits')])
+        setAthletes(a.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')))
+        setUnits(u)
+      }
+    } catch (e) {
+      showToast(e.message, 'error')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -103,13 +111,12 @@ export default function AthletesPage() {
     setSaving(true)
     try {
       const payload = {
-        name: form.name,
-        gender: form.gender,
-        birth_date: form.birthDate,
-        belt: form.belt,
+        name:             form.name,
+        gender:           form.gender,
+        birth_date:       form.birthDate,
+        belt:             form.belt,
         training_unit_id: form.trainingUnitId,
       }
-
       if (modal.mode === 'edit') {
         await offlineWrite('PUT', `/athletes/${modal.athlete.id}`, payload,
           () => putItem('athletes', { ...modal.athlete, ...payload })
@@ -122,7 +129,6 @@ export default function AthletesPage() {
         )
         showToast(navigator.onLine ? 'Atleta cadastrado.' : 'Salvo offline. Será sincronizado em breve.')
       }
-
       await refreshPendingCount()
       setModal(null)
       load()
@@ -136,7 +142,7 @@ export default function AthletesPage() {
       await offlineWrite('DELETE', `/athletes/${athlete.id}`, null,
         () => deleteItem('athletes', athlete.id)
       )
-      showToast(navigator.onLine ? 'Atleta excluído.' : 'Exclusão salva offline. Será sincronizada em breve.')
+      showToast(navigator.onLine ? 'Atleta excluído.' : 'Exclusão salva offline.')
       await refreshPendingCount()
       load()
     } catch (e) { showToast(e.message, 'error') }
@@ -157,7 +163,7 @@ export default function AthletesPage() {
       ) : (
         <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm overflow-hidden">
           <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-b border-[#DDE1EA] bg-[#F5F6F8]">
-            {['Nome', 'Gênero', 'Categoria', 'Faixa', 'Unidade', ''].map(h => (
+            {['Nome','Gênero','Categoria','Faixa','Unidade',''].map(h => (
               <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">{h}</span>
             ))}
           </div>
