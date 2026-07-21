@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { GENDERS, MODALITIES, AGE_CATEGORIES } from '../data/constants'
 import { athletesApi } from '../utils/api'
+import { getById, getAll } from '../services/indexedDB'
 import { formatDateBR, getInitials } from '../utils/helpers'
 import { useAuth } from '../context/AuthContext'
 import { Chip, BeltChip, PlacementChip, StatCard, EmptyState, Button } from '../components/ui'
@@ -11,15 +12,66 @@ export default function AthleteDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { isAuth } = useAuth()
-  const [athlete, setAthlete] = useState(null)
-  const [history, setHistory] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [athlete, setAthlete]   = useState(null)
+  const [history, setHistory]   = useState(null)
+  const [loading, setLoading]   = useState(true)
 
   useEffect(() => {
-    Promise.all([athletesApi.getById(id), athletesApi.history(id)])
-      .then(([a, h]) => { setAthlete(a); setHistory(h) })
-      .catch(() => setAthlete(null))
-      .finally(() => setLoading(false))
+    const load = async () => {
+      setLoading(true)
+      try {
+        if (navigator.onLine) {
+          const [a, h] = await Promise.all([athletesApi.getById(id), athletesApi.history(id)])
+          setAthlete(a)
+          setHistory(h)
+        } else {
+          // Offline — busca do IndexedDB
+          const a = await getById('athletes', id)
+          setAthlete(a)
+
+          if (a) {
+            const [results, competitions, competitionTypes] = await Promise.all([
+              getAll('results'),
+              getAll('competitions'),
+              getAll('competitionTypes'),
+            ])
+
+            const compById  = Object.fromEntries(competitions.map(c => [c.id, c]))
+            const typeById  = Object.fromEntries(competitionTypes.map(t => [t.id, t]))
+
+            const athleteResults = results
+              .filter(r => r.athlete_id === id)
+              .map(r => {
+                const comp = compById[r.competition_id]
+                const type = comp ? typeById[comp.competition_type_id] : null
+                let points = 0
+                if (type) {
+                  if (r.enrolled) points += type.points_enrollment || 0
+                  if (r.placement === 'gold')   points += type.points_gold   || 0
+                  if (r.placement === 'silver') points += type.points_silver || 0
+                  if (r.placement === 'bronze') points += type.points_bronze || 0
+                }
+                return {
+                  ...r,
+                  competition_name:       comp?.name  || '—',
+                  competition_date:       comp?.date  || null,
+                  competition_type_label: type?.label || '—',
+                  points,
+                }
+              })
+              .sort((a, b) => new Date(b.competition_date) - new Date(a.competition_date))
+
+            const totalPoints = athleteResults.reduce((sum, r) => sum + r.points, 0)
+            setHistory({ results: athleteResults, totalPoints })
+          }
+        }
+      } catch {
+        setAthlete(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
   }, [id])
 
   if (loading) return (
@@ -35,16 +87,11 @@ export default function AthleteDetailPage() {
 
   const age = new Date().getFullYear() - new Date(athlete.birth_date).getFullYear()
   const ageCategory = AGE_CATEGORIES.find(c => age >= c.minAge && (c.maxAge === null || age <= c.maxAge))
-
-  // Visitantes veem só o primeiro nome
   const parts = athlete.name.trim().split(/\s+/)
-  const displayName = isAuth
-    ? athlete.name
-    : parts.length >= 2 ? `${parts[0]} ${parts[1]}` : parts[0]
+  const displayName = isAuth ? athlete.name : (parts.length >= 2 ? `${parts[0]} ${parts[1]}` : parts[0])
 
   return (
     <div>
-      {/* Voltar */}
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-1.5 text-[#1B4FA8] font-semibold text-sm mb-5 hover:underline"
@@ -53,7 +100,6 @@ export default function AthleteDetailPage() {
         Voltar
       </button>
 
-      {/* Header do atleta */}
       <div className="flex items-center gap-4 mb-6 flex-wrap">
         <div className="w-14 h-14 rounded-full bg-[#E6EFFC] text-[#1B4FA8] border-2 border-[#1B4FA8] flex items-center justify-center text-xl font-extrabold flex-shrink-0">
           {getInitials(athlete.name)}
@@ -63,7 +109,6 @@ export default function AthleteDetailPage() {
           <div className="flex gap-2 flex-wrap mt-1.5">
             {ageCategory && <Chip variant="category">{ageCategory.label}</Chip>}
             <BeltChip beltId={athlete.belt} />
-            {/* Dados restritos */}
             {isAuth && (
               <>
                 <Chip variant="default">
@@ -76,16 +121,12 @@ export default function AthleteDetailPage() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
         <StatCard label="Pontuação total" value={history?.totalPoints ?? 0} />
-        <StatCard label="Resultados" value={history?.results?.length ?? 0} />
-        {isAuth && (
-          <StatCard label="Nascimento" value={formatDateBR(athlete.birth_date)} />
-        )}
+        <StatCard label="Resultados"      value={history?.results?.length ?? 0} />
+        {isAuth && <StatCard label="Nascimento" value={formatDateBR(athlete.birth_date)} />}
       </div>
 
-      {/* Histórico */}
       <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#A8AFBC] mb-3">
         Histórico em competições
       </h3>
@@ -102,7 +143,6 @@ export default function AthleteDetailPage() {
               <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">{h}</span>
             ))}
           </div>
-
           {history.results.map((r, i, arr) => {
             const modLabel = MODALITIES.find(m => m.id === r.modality)?.label || r.modality
             return (

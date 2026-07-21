@@ -1,18 +1,21 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { competitionTypesApi } from '../utils/api'
+import { getAll, putItem, deleteItem } from '../services/indexedDB'
+import { offlineWrite } from '../hooks/useOfflineData'
 import { Button, EmptyState, PageHeader } from '../components/ui'
 import Modal from '../components/ui/Modal'
 import EvaIcon from '../components/ui/EvaIcon'
 import { useToast } from '../context/ToastContext'
+import { useSyncStatus } from '../context/SyncContext'
 
 function TypeForm({ initial, onSave, onCancel, loading }) {
   const [form, setForm] = useState({
-    label:      initial?.label              || '',
-    enrollment: initial?.points_enrollment  ?? '',
-    gold:       initial?.points_gold        ?? '',
-    silver:     initial?.points_silver      ?? '',
-    bronze:     initial?.points_bronze      ?? '',
+    label:      initial?.label             || '',
+    enrollment: initial?.points_enrollment ?? '',
+    gold:       initial?.points_gold       ?? '',
+    silver:     initial?.points_silver     ?? '',
+    bronze:     initial?.points_bronze     ?? '',
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const inputCls = "w-full border border-[#C4CADB] rounded-lg px-3 py-2.5 text-sm bg-white text-[#0D1B35] focus:outline-none focus:border-[#1B4FA8]"
@@ -22,7 +25,7 @@ function TypeForm({ initial, onSave, onCancel, loading }) {
     <form onSubmit={e => {
       e.preventDefault()
       onSave({
-        label: form.label,
+        label:             form.label,
         points_enrollment: Number(form.enrollment),
         points_gold:       Number(form.gold),
         points_silver:     Number(form.silver),
@@ -52,6 +55,7 @@ function TypeForm({ initial, onSave, onCancel, loading }) {
 export default function CompetitionTypesPage() {
   const { isAuth } = useAuth()
   const { showToast } = useToast()
+  const { refreshPendingCount } = useSyncStatus()
   const [types, setTypes]     = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
@@ -59,7 +63,11 @@ export default function CompetitionTypesPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    setTypes(await competitionTypesApi.getAll())
+    if (navigator.onLine) {
+      setTypes(await competitionTypesApi.getAll())
+    } else {
+      setTypes(await getAll('competitionTypes'))
+    }
     setLoading(false)
   }, [])
 
@@ -68,17 +76,35 @@ export default function CompetitionTypesPage() {
   const handleSave = async (data) => {
     setSaving(true)
     try {
-      if (modal.mode === 'edit') { await competitionTypesApi.update(modal.type.id, data); showToast('Tipo atualizado.') }
-      else { await competitionTypesApi.create(data); showToast('Tipo cadastrado.') }
-      setModal(null); load()
+      if (modal.mode === 'edit') {
+        await offlineWrite('PUT', `/competition-types/${modal.type.id}`, data,
+          () => putItem('competitionTypes', { ...modal.type, ...data })
+        )
+        showToast(navigator.onLine ? 'Tipo atualizado.' : 'Salvo offline. Será sincronizado em breve.')
+      } else {
+        const tempId = `temp_${Date.now()}`
+        await offlineWrite('POST', '/competition-types', data,
+          () => putItem('competitionTypes', { id: tempId, ...data })
+        )
+        showToast(navigator.onLine ? 'Tipo cadastrado.' : 'Salvo offline. Será sincronizado em breve.')
+      }
+      await refreshPendingCount()
+      setModal(null)
+      load()
     } catch (e) { showToast(e.message, 'error') }
     finally { setSaving(false) }
   }
 
   const handleDelete = async (type) => {
     if (!confirm(`Excluir "${type.label}"?`)) return
-    try { await competitionTypesApi.remove(type.id); showToast('Tipo excluído.'); load() }
-    catch (e) { showToast(e.message, 'error') }
+    try {
+      await offlineWrite('DELETE', `/competition-types/${type.id}`, null,
+        () => deleteItem('competitionTypes', type.id)
+      )
+      showToast(navigator.onLine ? 'Tipo excluído.' : 'Exclusão salva offline.')
+      await refreshPendingCount()
+      load()
+    } catch (e) { showToast(e.message, 'error') }
   }
 
   if (loading) return <div className="flex justify-center py-16 text-[#A8AFBC] text-sm">Carregando...</div>
@@ -103,7 +129,6 @@ export default function CompetitionTypesPage() {
               <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">{h}</span>
             ))}
           </div>
-
           {types.map((type, i, arr) => (
             <div key={type.id} className={`grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-2 md:gap-4 px-4 py-3 ${i < arr.length - 1 ? 'border-b border-[#DDE1EA]' : ''}`}>
               <span className="font-semibold text-[#0D1B35]">{type.label}</span>
