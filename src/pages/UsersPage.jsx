@@ -69,13 +69,28 @@ export default function UsersPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    setUsers(await usersApi.getAll())
-    setLoading(false)
+    try {
+      if (navigator.onLine) {
+        setUsers(await usersApi.getAll())
+      } else {
+        // Usuários não são cacheados por segurança
+        // mostra lista vazia offline
+        setUsers([])
+      }
+    } catch (e) {
+      showToast(e.message, 'error')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => { load() }, [load])
 
   const handleSave = async (form) => {
+    if (!navigator.onLine) {
+      showToast('Gerenciamento de usuários requer conexão com a internet.', 'error')
+      return
+    }
     setSaving(true)
     try {
       const payload = { name: form.name, email: form.email, role: form.role, active: form.active }
@@ -95,6 +110,10 @@ export default function UsersPage() {
   }
 
   const handleDelete = async (user) => {
+    if (!navigator.onLine) {
+      showToast('Gerenciamento de usuários requer conexão com a internet.', 'error')
+      return
+    }
     if (!confirm(`Excluir "${user.name}"?`)) return
     try { await usersApi.remove(user.id); showToast('Usuário excluído.'); load() }
     catch (e) { showToast(e.message, 'error') }
@@ -107,10 +126,20 @@ export default function UsersPage() {
       <PageHeader
         title="Usuários"
         description="Gerencie os usuários com acesso ao sistema."
-        action={<Button onClick={() => setModal({ mode: 'add' })}>+ Novo Usuário</Button>}
+        action={<Button onClick={() => {
+          if (!navigator.onLine) { showToast('Requer conexão com a internet.', 'error'); return }
+          setModal({ mode: 'add' })
+        }}>+ Novo Usuário</Button>}
       />
 
-      {users.length === 0 ? (
+      {!navigator.onLine ? (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
+          <p className="text-sm text-yellow-700 font-medium">
+            Gerenciamento de usuários não está disponível offline.
+          </p>
+          <p className="text-xs text-yellow-600 mt-1">Conecte-se à internet para acessar esta funcionalidade.</p>
+        </div>
+      ) : users.length === 0 ? (
         <EmptyState
           title="Nenhum usuário cadastrado"
           action={<Button onClick={() => setModal({ mode: 'add' })}>+ Novo Usuário</Button>}
@@ -118,24 +147,21 @@ export default function UsersPage() {
       ) : (
         <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm overflow-hidden">
           <div className="hidden md:grid grid-cols-[2fr_2fr_1fr_1fr_auto] gap-4 px-4 py-3 border-b border-[#DDE1EA] bg-[#F5F6F8]">
-            {['Nome', 'Email', 'Perfil', 'Status', ''].map(h => (
+            {['Nome','Email','Perfil','Status',''].map(h => (
               <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">{h}</span>
             ))}
           </div>
-
           {users.map((user, i, arr) => (
             <div key={user.id} className={`grid grid-cols-1 md:grid-cols-[2fr_2fr_1fr_1fr_auto] gap-2 md:gap-4 px-4 py-3 ${i < arr.length - 1 ? 'border-b border-[#DDE1EA]' : ''}`}>
               <span className="font-semibold text-[#0D1B35]">{user.name}</span>
               <span className="text-sm text-[#4A5568]">{user.email}</span>
               <span>
-                <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold
-                  ${user.role === 'admin' ? 'bg-[#E6EFFC] text-[#0D3278]' : 'bg-[#F5F6F8] text-[#4A5568] border border-[#DDE1EA]'}`}>
+                <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${user.role === 'admin' ? 'bg-[#E6EFFC] text-[#0D3278]' : 'bg-[#F5F6F8] text-[#4A5568] border border-[#DDE1EA]'}`}>
                   {user.role === 'admin' ? 'Admin' : 'Professor'}
                 </span>
               </span>
               <span>
-                <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold
-                  ${user.active ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${user.active ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                   {user.active ? 'Ativo' : 'Inativo'}
                 </span>
               </span>
