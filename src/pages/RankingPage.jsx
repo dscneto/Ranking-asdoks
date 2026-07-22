@@ -31,10 +31,11 @@ function calcTotalPoints(athlete, results, competitionTypes, competitions, modal
 export default function RankingPage() {
   const navigate = useNavigate()
   const { isAuth } = useAuth()
-  const [filters, setFilters] = useState({ gender: '', ageCategoryId: '', modality: '' })
-  const [ranking, setRanking] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState(null)
+  const [filters, setFilters]   = useState({ gender: '', ageCategoryId: '', modality: '' })
+  const [search, setSearch]     = useState('')
+  const [ranking, setRanking]   = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState(null)
 
   useEffect(() => {
     setLoading(true)
@@ -42,7 +43,6 @@ export default function RankingPage() {
 
     const load = async () => {
       if (navigator.onLine) {
-        // Online — busca da API
         try {
           const data = await rankingApi.get(filters)
           setRanking(data)
@@ -50,7 +50,6 @@ export default function RankingPage() {
           setError(e.message)
         }
       } else {
-        // Offline — calcula ranking a partir do IndexedDB
         try {
           const [athletes, results, competitions, competitionTypes] = await Promise.all([
             getAll('athletes'),
@@ -78,7 +77,6 @@ export default function RankingPage() {
             const competitionsCount = new Set(
               results.filter(r => r.athlete_id === athlete.id).map(r => r.competition_id)
             ).size
-
             return {
               ...athlete,
               age,
@@ -99,9 +97,15 @@ export default function RankingPage() {
     load()
   }, [filters])
 
-  const hasFilter   = filters.gender || filters.ageCategoryId || filters.modality
-  const clearFilters = () => setFilters({ gender: '', ageCategoryId: '', modality: '' })
-  const selectCls   = "border border-[#C4CADB] rounded-lg px-3 py-2 text-sm bg-white text-[#0D1B35] min-w-[160px] focus:outline-none focus:border-[#1B4FA8]"
+  // Aplica busca por nome no resultado do ranking
+  const filteredRanking = ranking.filter(entry => {
+    if (!search.trim()) return true
+    return entry.name.toLowerCase().includes(search.toLowerCase())
+  })
+
+  const hasFilter    = filters.gender || filters.ageCategoryId || filters.modality
+  const clearFilters = () => { setFilters({ gender: '', ageCategoryId: '', modality: '' }); setSearch('') }
+  const selectCls    = "border border-[#C4CADB] rounded-lg px-3 py-2 text-sm bg-white text-[#0D1B35] min-w-[160px] focus:outline-none focus:border-[#1B4FA8]"
 
   return (
     <div>
@@ -110,22 +114,51 @@ export default function RankingPage() {
         description="Pontuação acumulada por inscrições e colocações em todas as competições."
       />
 
-      <div className="flex gap-2 flex-wrap mb-5 p-4 bg-white border border-[#DDE1EA] rounded-xl shadow-sm">
-        <select className={selectCls} value={filters.gender} onChange={e => setFilters(f => ({ ...f, gender: e.target.value }))}>
-          <option value="">Todos os gêneros</option>
-          {GENDERS.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
-        </select>
-        <select className={selectCls} value={filters.ageCategoryId} onChange={e => setFilters(f => ({ ...f, ageCategoryId: e.target.value }))}>
-          <option value="">Todas as categorias</option>
-          {AGE_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-        </select>
-        <select className={`${selectCls} min-w-[180px]`} value={filters.modality} onChange={e => setFilters(f => ({ ...f, modality: e.target.value }))}>
-          <option value="">Todas as modalidades</option>
-          {MODALITIES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-        </select>
-        {hasFilter && <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar filtros</Button>}
+      {/* Filtros + Busca */}
+      <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm p-4 mb-5">
+        {/* Campo de busca */}
+        <div className="relative mb-3">
+          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-[#A8AFBC]">
+            <EvaIcon name="search-outline" size={16} fill="currentColor" />
+          </div>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar atleta pelo nome..."
+            className="w-full border border-[#C4CADB] rounded-lg pl-9 pr-4 py-2 text-sm bg-white text-[#0D1B35] focus:outline-none focus:border-[#1B4FA8]"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute inset-y-0 right-3 flex items-center text-[#A8AFBC] hover:text-[#4A5568]"
+            >
+              <EvaIcon name="close-outline" size={16} fill="currentColor" />
+            </button>
+          )}
+        </div>
+
+        {/* Filtros */}
+        <div className="flex gap-2 flex-wrap">
+          <select className={selectCls} value={filters.gender} onChange={e => setFilters(f => ({ ...f, gender: e.target.value }))}>
+            <option value="">Todos os gêneros</option>
+            {GENDERS.map(g => <option key={g.id} value={g.id}>{g.label}</option>)}
+          </select>
+          <select className={selectCls} value={filters.ageCategoryId} onChange={e => setFilters(f => ({ ...f, ageCategoryId: e.target.value }))}>
+            <option value="">Todas as categorias</option>
+            {AGE_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+          <select className={`${selectCls} min-w-[180px]`} value={filters.modality} onChange={e => setFilters(f => ({ ...f, modality: e.target.value }))}>
+            <option value="">Todas as modalidades</option>
+            {MODALITIES.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+          </select>
+          {(hasFilter || search) && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>Limpar tudo</Button>
+          )}
+        </div>
       </div>
 
+      {/* Estados */}
       {loading && (
         <div className="flex items-center justify-center py-16 text-[#A8AFBC] gap-2">
           <EvaIcon name="loader-outline" size={20} fill="currentColor" />
@@ -137,17 +170,17 @@ export default function RankingPage() {
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">{error}</div>
       )}
 
-      {!loading && !error && ranking.length === 0 && (
+      {!loading && !error && filteredRanking.length === 0 && (
         <EmptyState
-          title={hasFilter ? 'Nenhum atleta encontrado' : 'Nenhum atleta cadastrado'}
-          description={hasFilter ? 'Tente ajustar os filtros.' : 'Cadastre atletas e lance resultados para ver o ranking.'}
-          action={!hasFilter && <Button onClick={() => navigate('/atletas')}>Cadastrar Atletas</Button>}
+          title={search ? `Nenhum atleta encontrado para "${search}"` : (hasFilter ? 'Nenhum atleta encontrado' : 'Nenhum atleta cadastrado')}
+          description={search || hasFilter ? 'Tente ajustar os filtros ou a busca.' : 'Cadastre atletas e lance resultados para ver o ranking.'}
+          action={!hasFilter && !search && <Button onClick={() => navigate('/atletas')}>Cadastrar Atletas</Button>}
         />
       )}
 
-      {!loading && !error && ranking.length > 0 && (
+      {!loading && !error && filteredRanking.length > 0 && (
         <div className="flex flex-col gap-2">
-          {ranking.map((entry, index) => {
+          {filteredRanking.map((entry, index) => {
             const pos      = index + 1
             const isGold   = pos === 1
             const isSilver = pos === 2
@@ -186,7 +219,9 @@ export default function RankingPage() {
                     <Chip variant="default">{genderLabel}</Chip>
                     {ageCategory && <Chip variant="category">{ageCategory.label}</Chip>}
                     <BeltChip beltId={entry.belt} />
-                    {entry.competitions_count > 0 && <Chip variant="default">{entry.competitions_count} compet.</Chip>}
+                    {entry.competitions_count > 0 && (
+                      <Chip variant="default">{entry.competitions_count} compet.</Chip>
+                    )}
                   </div>
                 </div>
 

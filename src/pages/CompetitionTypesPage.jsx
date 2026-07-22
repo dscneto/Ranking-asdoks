@@ -63,12 +63,19 @@ export default function CompetitionTypesPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (navigator.onLine) {
-      setTypes(await competitionTypesApi.getAll())
-    } else {
-      setTypes(await getAll('competitionTypes'))
+    try {
+      if (navigator.onLine) {
+        const t = await competitionTypesApi.getAll()
+        setTypes(t.sort((a, b) => a.points_gold - b.points_gold))
+      } else {
+        const t = await getAll('competitionTypes')
+        setTypes(t.sort((a, b) => a.points_gold - b.points_gold))
+      }
+    } catch (e) {
+      showToast(e.message, 'error')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])

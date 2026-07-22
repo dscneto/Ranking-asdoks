@@ -63,18 +63,18 @@ export default function CompetitionsPage() {
   const [modal, setModal]               = useState(null)
 
   const load = useCallback(async () => {
-    setLoading(true)
-    if (navigator.onLine) {
-      const [c, t] = await Promise.all([competitionsApi.getAll(), competitionTypesApi.getAll()])
-      setCompetitions(c)
-      setTypes(t)
-    } else {
-      const [c, t] = await Promise.all([getAll('competitions'), getAll('competitionTypes')])
-      setCompetitions(c.sort((a, b) => new Date(b.date) - new Date(a.date)))
-      setTypes(t)
-    }
-    setLoading(false)
-  }, [])
+  setLoading(true)
+  if (navigator.onLine) {
+    const [c, t] = await Promise.all([competitionsApi.getAll(), competitionTypesApi.getAll()])
+    setCompetitions(c.sort((a, b) => new Date(a.date) - new Date(b.date))) // ← linha online
+    setTypes(t)
+  } else {
+    const [c, t] = await Promise.all([getAll('competitions'), getAll('competitionTypes')])
+    setCompetitions(c.sort((a, b) => new Date(a.date) - new Date(b.date))) // ← linha offline
+    setTypes(t)
+  }
+  setLoading(false)
+}, [])
 
   useEffect(() => { load() }, [load])
 
