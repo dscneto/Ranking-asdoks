@@ -4,16 +4,16 @@ import { useAuth } from '../../context/AuthContext'
 import logo from '../../assets/ASDOKS_LOGO.png'
 
 const PUBLIC_NAV = [
-  { to: '/',            label: 'Ranking',            icon: 'award'      },
-  { to: '/competicoes', label: 'Competições',         icon: 'calendar'   },
-  { to: '/tipos',       label: 'Tipos de Competição', icon: 'layers'     },
+  { to: '/', label: 'Ranking', icon: 'award' },
+  { to: '/competicoes', label: 'Competições', icon: 'calendar' },
+  { to: '/tipos', label: 'Tipos de Competição', icon: 'layers' },
 ]
 
 const PRIVATE_NAV = [
-  { to: '/atletas',       label: 'Atletas',           icon: 'people'      },
-  { to: '/resultados',    label: 'Lançar Resultados', icon: 'bar-chart-2' },
-  { to: '/usuarios',      label: 'Usuários',          icon: 'person'      },
-  { to: '/configuracoes', label: 'Configurações',     icon: 'settings-2'  },
+  { to: '/atletas', label: 'Atletas', icon: 'people' },
+  { to: '/resultados', label: 'Lançar Resultados', icon: 'bar-chart-2' },
+  { to: '/usuarios', label: 'Usuários', icon: 'person' },
+  { to: '/configuracoes', label: 'Configurações', icon: 'settings-2' },
 ]
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -88,9 +88,15 @@ export default function Sidebar({ isOpen, onClose }) {
         <div className="px-3 py-3 border-t border-white/10 flex-shrink-0">
           {isAuth ? (
             <div>
-              <div className="px-3 py-2 mb-1">
-                <p className="text-white/80 text-[12px] font-semibold truncate">{user.name}</p>
-                <p className="text-white/35 text-[10px] truncate">{user.email}</p>
+              <div className="flex items-center gap-3 px-3 py-2 mb-1">
+                {/* Avatar com iniciais */}
+                <div className="w-8 h-8 rounded-full bg-[#1B4FA8] border-2 border-white/20 flex items-center justify-center text-white text-[11px] font-extrabold flex-shrink-0">
+                  {user.name.trim().split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-white/80 text-[12px] font-semibold truncate">{user.name}</p>
+                  <p className="text-white/35 text-[10px] truncate">{user.email}</p>
+                </div>
               </div>
               <button
                 onClick={handleLogout}
