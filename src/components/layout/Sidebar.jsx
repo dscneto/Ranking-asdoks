@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import EvaIcon from '../ui/EvaIcon'
 import { useAuth } from '../../context/AuthContext'
+import logo from '../../assets/ASDOKS_LOGO.png'
 
 const PUBLIC_NAV = [
   { to: '/',            label: 'Ranking',            icon: 'award'      },
@@ -30,7 +31,10 @@ export default function Sidebar({ isOpen, onClose }) {
   return (
     <>
       {isOpen && (
-        <div className="fixed inset-0 z-50 bg-[rgba(13,50,120,0.45)] lg:hidden" onClick={onClose} />
+        <div
+          className="fixed inset-0 z-50 bg-[rgba(13,50,120,0.45)] lg:hidden"
+          onClick={onClose}
+        />
       )}
 
       <aside className={`
@@ -40,18 +44,19 @@ export default function Sidebar({ isOpen, onClose }) {
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0
       `}>
-        {/* Brand */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-white/10 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-[#1B4FA8] border-2 border-white/20 flex items-center justify-center text-white text-xs font-extrabold tracking-tight flex-shrink-0">
-              AS
-            </div>
-            <div className="flex flex-col leading-tight">
-              <span className="text-white font-extrabold text-[14px] tracking-tight">ASDOKS</span>
-              <span className="text-white/45 text-[9px] font-bold uppercase tracking-widest">Ranking Karatê</span>
-            </div>
-          </div>
-          <button onClick={onClose} className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:bg-white/10 transition-colors">
+
+        {/* Logo */}
+        <div className="flex items-center justify-between px-4 pt-5 pb-4 border-b border-white/10 flex-shrink-0">
+          <img
+            src={logo}
+            alt="ASDOKS"
+            className="w-full max-w-[160px] mx-auto object-contain"
+            style={{ filter: 'brightness(0) invert(1)' }}
+          />
+          <button
+            onClick={onClose}
+            className="lg:hidden w-8 h-8 flex items-center justify-center rounded-lg text-white/60 hover:bg-white/10 transition-colors ml-2 flex-shrink-0"
+          >
             <EvaIcon name="close" size={18} fill="currentColor" />
           </button>
         </div>
@@ -79,7 +84,7 @@ export default function Sidebar({ isOpen, onClose }) {
           ))}
         </nav>
 
-        {/* Footer */}
+        {/* Footer — login/logout */}
         <div className="px-3 py-3 border-t border-white/10 flex-shrink-0">
           {isAuth ? (
             <div>
