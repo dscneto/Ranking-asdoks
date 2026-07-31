@@ -13,10 +13,10 @@ import EvaIcon from '../components/ui/EvaIcon'
 
 function AthleteForm({ initial, units, onSave, onCancel, loading }) {
   const [form, setForm] = useState({
-    name:           initial?.name             || '',
-    gender:         initial?.gender           || '',
-    birthDate:      initial?.birth_date       || '',
-    belt:           initial?.belt             || '',
+    name: initial?.name || '',
+    gender: initial?.gender || '',
+    birthDate: initial?.birth_date?.split('T')[0] || '',
+    belt: initial?.belt || '',
     trainingUnitId: initial?.training_unit_id || '',
   })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -81,10 +81,10 @@ export default function AthletesPage() {
   const { showToast } = useToast()
   const { refreshPendingCount } = useSyncStatus()
   const [athletes, setAthletes] = useState([])
-  const [units, setUnits]       = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [saving, setSaving]     = useState(false)
-  const [modal, setModal]       = useState(null)
+  const [units, setUnits] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [modal, setModal] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -111,10 +111,10 @@ export default function AthletesPage() {
     setSaving(true)
     try {
       const payload = {
-        name:             form.name,
-        gender:           form.gender,
-        birth_date:       form.birthDate,
-        belt:             form.belt,
+        name: form.name,
+        gender: form.gender,
+        birth_date: form.birthDate,
+        belt: form.belt,
         training_unit_id: form.trainingUnitId,
       }
       if (modal.mode === 'edit') {
@@ -163,7 +163,7 @@ export default function AthletesPage() {
       ) : (
         <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm overflow-hidden">
           <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-b border-[#DDE1EA] bg-[#F5F6F8]">
-            {['Nome','Gênero','Categoria','Faixa','Unidade',''].map(h => (
+            {['Nome', 'Gênero', 'Categoria', 'Faixa', 'Unidade', ''].map(h => (
               <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-[#A8AFBC]">{h}</span>
             ))}
           </div>
