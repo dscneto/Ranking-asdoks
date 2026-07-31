@@ -21,6 +21,7 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showOnlyEnrolled, setShowOnlyEnrolled] = useState(false)
+  const [enrolledAthleteIds, setEnrolledAthleteIds] = useState(new Set())
 
   useEffect(() => {
     const load = async () => {
@@ -53,6 +54,14 @@ export default function ResultsPage() {
     const loadEntries = async () => {
       try {
         if (navigator.onLine) {
+          // Carrega os inscritos na modalidade "inscricao" deste campeonato
+          if (modality !== 'inscricao') {
+            const inscricoes = await resultsApi.getByCompetitionAndModality(competitionId, 'inscricao')
+            setEnrolledAthleteIds(new Set(inscricoes.filter(r => r.enrolled).map(r => r.athlete_id)))
+          } else {
+            setEnrolledAthleteIds(new Set())
+          }
+
           const existing = await resultsApi.getByCompetitionAndModality(competitionId, modality)
           const byAthlete = Object.fromEntries(existing.map(r => [r.athlete_id, r]))
           setEntries(athletes.map(a => ({
@@ -62,6 +71,14 @@ export default function ResultsPage() {
           })))
         } else {
           const allResults = await getAll('results')
+
+          if (modality !== 'inscricao') {
+            const inscricoes = allResults.filter(r => r.competition_id === competitionId && r.modality === 'inscricao' && r.enrolled)
+            setEnrolledAthleteIds(new Set(inscricoes.map(r => r.athlete_id)))
+          } else {
+            setEnrolledAthleteIds(new Set())
+          }
+
           const existing = allResults.filter(r => r.competition_id === competitionId && r.modality === modality)
           const byAthlete = Object.fromEntries(existing.map(r => [r.athlete_id, r]))
           setEntries(athletes.map(a => ({
@@ -119,6 +136,12 @@ export default function ResultsPage() {
     const matchSearch = !search.trim() ||
       athlete.name.toLowerCase().includes(search.toLowerCase())
 
+    // Para modalidades de colocação, só exibe atletas inscritos no campeonato
+    if (!isInscricao && enrolledAthleteIds.size > 0) {
+      if (!enrolledAthleteIds.has(athlete.id)) return false
+    }
+
+    // Filtro adicional de "ver apenas inscritos" (para inscrição)
     if (!isInscricao && showOnlyEnrolled) {
       const entry = entries.find(e => e.athleteId === athlete.id)
       return matchSearch && entry?.enrolled
