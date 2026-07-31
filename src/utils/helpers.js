@@ -2,7 +2,8 @@ import { AGE_CATEGORIES } from '../data/constants'
 
 // ─── Idade & Categoria ────────────────────────────────────────────────────────
 export function calculateAge(birthDateISO, refDate = new Date()) {
-  const birth = new Date(birthDateISO + 'T00:00:00')
+  const dateOnly = birthDateISO.split('T')[0]
+  const birth = new Date(dateOnly + 'T00:00:00')
   let age = refDate.getFullYear() - birth.getFullYear()
   const hadBirthday =
     refDate.getMonth() > birth.getMonth() ||
@@ -33,9 +34,9 @@ export function calculateResultPoints(result, competitionType) {
 export function formatDateBR(isoDate) {
   if (!isoDate) return '—'
   const date = new Date(isoDate)
-  const day   = String(date.getUTCDate()).padStart(2, '0')
+  const day = String(date.getUTCDate()).padStart(2, '0')
   const month = String(date.getUTCMonth() + 1).padStart(2, '0')
-  const year  = date.getUTCFullYear()
+  const year = date.getUTCFullYear()
   return `${day}/${month}/${year}`
 }
 
