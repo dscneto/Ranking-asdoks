@@ -21,54 +21,74 @@ async function request(method, path, body) {
   return data
 }
 
-const get  = (path)       => request('GET',    path)
-const post = (path, body) => request('POST',   path, body)
-const put  = (path, body) => request('PUT',    path, body)
-const del  = (path)       => request('DELETE', path)
+const get = (path) => request('GET', path)
+const post = (path, body) => request('POST', path, body)
+const put = (path, body) => request('PUT', path, body)
+const del = (path) => request('DELETE', path)
 
+// ─── Auth ─────────────────────────────────────────────────────────────────────
 export const authApi = {
   me: () => get('/auth/me'),
 }
 
+// ─── Usuários ─────────────────────────────────────────────────────────────────
 export const usersApi = {
-  getAll:  ()         => get('/users'),
-  create:  (data)     => post('/users', data),
-  update:  (id, data) => put(`/users/${id}`, data),
-  remove:  (id)       => del(`/users/${id}`),
+  getAll: () => get('/users'),
+  create: (data) => post('/users', data),
+  update: (id, data) => put(`/users/${id}`, data),
+  remove: (id) => del(`/users/${id}`),
 }
 
+// ─── Professores ──────────────────────────────────────────────────────────────
+export const coachesApi = {
+  getAll: () => get('/coaches'),
+  getById: (id) => get(`/coaches/${id}`),
+  create: (data) => post('/coaches', data),
+  update: (id, data) => put(`/coaches/${id}`, data),
+  remove: (id) => del(`/coaches/${id}`),
+  ranking: () => get('/coaches/ranking'),
+  athletes: (id) => get(`/coaches/${id}/athletes`),
+}
+
+// ─── Atletas ──────────────────────────────────────────────────────────────────
 export const athletesApi = {
-  getAll:  ()         => get('/athletes'),
-  getById: (id)       => get(`/athletes/${id}`),
-  create:  (data)     => post('/athletes', data),
-  update:  (id, data) => put(`/athletes/${id}`, data),
-  remove:  (id)       => del(`/athletes/${id}`),
-  history: (id)       => get(`/athletes/${id}/history`),
+  getAll: () => get('/athletes'),
+  getById: (id) => get(`/athletes/${id}`),
+  create: (data) => post('/athletes', data),
+  update: (id, data) => put(`/athletes/${id}`, data),
+  remove: (id) => del(`/athletes/${id}`),
+  history: (id) => get(`/athletes/${id}/history`),
+  getCoaches: (id) => get(`/athletes/${id}/coaches`),
+  updateCoaches: (id, coachIds) => put(`/athletes/${id}/coaches`, { coachIds }),
 }
 
+// ─── Competições ──────────────────────────────────────────────────────────────
 export const competitionsApi = {
-  getAll:  ()         => get('/competitions'),
-  getById: (id)       => get(`/competitions/${id}`),
-  create:  (data)     => post('/competitions', data),
-  update:  (id, data) => put(`/competitions/${id}`, data),
-  remove:  (id)       => del(`/competitions/${id}`),
+  getAll: () => get('/competitions'),
+  getById: (id) => get(`/competitions/${id}`),
+  create: (data) => post('/competitions', data),
+  update: (id, data) => put(`/competitions/${id}`, data),
+  remove: (id) => del(`/competitions/${id}`),
 }
 
+// ─── Tipos de competição ──────────────────────────────────────────────────────
 export const competitionTypesApi = {
-  getAll:  ()         => get('/competition-types'),
-  getById: (id)       => get(`/competition-types/${id}`),
-  create:  (data)     => post('/competition-types', data),
-  update:  (id, data) => put(`/competition-types/${id}`, data),
-  remove:  (id)       => del(`/competition-types/${id}`),
+  getAll: () => get('/competition-types'),
+  getById: (id) => get(`/competition-types/${id}`),
+  create: (data) => post('/competition-types', data),
+  update: (id, data) => put(`/competition-types/${id}`, data),
+  remove: (id) => del(`/competition-types/${id}`),
 }
 
+// ─── Unidades de treinamento ──────────────────────────────────────────────────
 export const trainingUnitsApi = {
-  getAll:  ()         => get('/training-units'),
-  create:  (data)     => post('/training-units', data),
-  update:  (id, data) => put(`/training-units/${id}`, data),
-  remove:  (id)       => del(`/training-units/${id}`),
+  getAll: () => get('/training-units'),
+  create: (data) => post('/training-units', data),
+  update: (id, data) => put(`/training-units/${id}`, data),
+  remove: (id) => del(`/training-units/${id}`),
 }
 
+// ─── Resultados & Ranking ─────────────────────────────────────────────────────
 export const resultsApi = {
   getByCompetitionAndModality: (competitionId, modality) =>
     get(`/results?competitionId=${competitionId}&modality=${modality}`),
@@ -79,9 +99,11 @@ export const resultsApi = {
 export const rankingApi = {
   get: (filters = {}) => {
     const params = new URLSearchParams()
-    if (filters.gender)        params.set('gender', filters.gender)
+    if (filters.gender) params.set('gender', filters.gender)
     if (filters.ageCategoryId) params.set('ageCategoryId', filters.ageCategoryId)
-    if (filters.modality)      params.set('modality', filters.modality)
+    if (filters.modality) params.set('modality', filters.modality)
+    if (filters.coachId) params.set('coachId', filters.coachId)
+    if (filters.trainingUnitId) params.set('trainingUnitId', filters.trainingUnitId)
     const qs = params.toString()
     return get(`/ranking${qs ? '?' + qs : ''}`)
   },

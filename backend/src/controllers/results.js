@@ -58,23 +58,21 @@ export async function saveResults(req, res) {
   }
 }
 
-// GET /api/ranking?gender=&ageCategoryId=&modality=
-// Monta o ranking completo com cálculo de pontuação no banco
+// GET /api/ranking?gender=&ageCategoryId=&modality=&coachId=&trainingUnitId=
 export async function getRanking(req, res) {
-  const { gender, ageCategoryId, modality } = req.query
+  const { gender, ageCategoryId, modality, coachId, trainingUnitId } = req.query
 
-  // Filtro de categoria de idade traduzido para SQL (faixa etária por data de nascimento)
   const AGE_FILTERS = {
-    mirim_a:    'EXTRACT(YEAR FROM AGE(a.birth_date)) BETWEEN 0 AND 5',
-    mirim_b:    'EXTRACT(YEAR FROM AGE(a.birth_date)) BETWEEN 6 AND 7',
-    mirim_c:    'EXTRACT(YEAR FROM AGE(a.birth_date)) BETWEEN 8 AND 9',
-    infantil_a: 'EXTRACT(YEAR FROM AGE(a.birth_date)) BETWEEN 10 AND 11',
-    infantil_b: 'EXTRACT(YEAR FROM AGE(a.birth_date)) BETWEEN 12 AND 13',
-    infanto:    'EXTRACT(YEAR FROM AGE(a.birth_date)) BETWEEN 14 AND 15',
-    juvenil:    'EXTRACT(YEAR FROM AGE(a.birth_date)) BETWEEN 16 AND 17',
-    senior_a:   'EXTRACT(YEAR FROM AGE(a.birth_date)) BETWEEN 18 AND 34',
-    senior_b:   'EXTRACT(YEAR FROM AGE(a.birth_date)) BETWEEN 35 AND 44',
-    senior_c:   'EXTRACT(YEAR FROM AGE(a.birth_date)) >= 45',
+    mirim_a: [0, 5],
+    mirim_b: [6, 7],
+    mirim_c: [8, 9],
+    infantil_a: [10, 11],
+    infantil_b: [12, 13],
+    infanto: [14, 15],
+    juvenil: [16, 17],
+    senior_a: [18, 34],
+    senior_b: [35, 44],
+    senior_c: [45, 999],
   }
 
   const conditions = ['1=1']
@@ -86,12 +84,30 @@ export async function getRanking(req, res) {
   }
 
   if (ageCategoryId && AGE_FILTERS[ageCategoryId]) {
-    conditions.push(AGE_FILTERS[ageCategoryId])
+    const [min, max] = AGE_FILTERS[ageCategoryId]
+    params.push(min, max)
+    conditions.push(
+      `EXTRACT(YEAR FROM AGE(a.birth_date)) BETWEEN $${params.length - 1} AND $${params.length}`
+    )
   }
 
-  const modalityJoin = modality
-    ? `AND r.modality = '${modality.replace(/'/g, "''")}'`
-    : ''
+  if (trainingUnitId) {
+    params.push(trainingUnitId)
+    conditions.push(`a.training_unit_id = $${params.length}`)
+  }
+
+  if (coachId) {
+    params.push(coachId)
+    conditions.push(
+      `EXISTS (SELECT 1 FROM athlete_coaches ac WHERE ac.athlete_id = a.id AND ac.coach_id = $${params.length})`
+    )
+  }
+
+  let modalityCondition = ''
+  if (modality) {
+    params.push(modality)
+    modalityCondition = `AND r.modality = $${params.length}`
+  }
 
   const sql = `
     SELECT
@@ -115,7 +131,7 @@ export async function getRanking(req, res) {
       COUNT(DISTINCT r.competition_id) AS competitions_count
     FROM athletes a
     LEFT JOIN training_units u ON a.training_unit_id = u.id
-    LEFT JOIN results r ON r.athlete_id = a.id ${modalityJoin}
+    LEFT JOIN results r ON r.athlete_id = a.id ${modalityCondition}
     LEFT JOIN competitions c ON r.competition_id = c.id
     LEFT JOIN competition_types ct ON c.competition_type_id = ct.id
     WHERE ${conditions.join(' AND ')}
