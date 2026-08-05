@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GENDERS, BELTS } from '../data/constants'
-import { athletesApi, trainingUnitsApi } from '../utils/api'
+import { athletesApi, trainingUnitsApi, coachesApi } from '../utils/api'
 import { getAll, putItem, deleteItem } from '../services/indexedDB'
 import { offlineWrite } from '../hooks/useOfflineData'
 import { getAgeCategoryFromBirthDate } from '../utils/helpers'
@@ -11,7 +11,7 @@ import { useToast } from '../context/ToastContext'
 import { useSyncStatus } from '../context/SyncContext'
 import EvaIcon from '../components/ui/EvaIcon'
 
-function AthleteForm({ initial, units, onSave, onCancel, loading }) {
+function AthleteForm({ initial, units, coaches, initialCoachIds, onSave, onCancel, loading }) {
   const [form, setForm] = useState({
     name: initial?.name || '',
     gender: initial?.gender || '',
@@ -19,14 +19,23 @@ function AthleteForm({ initial, units, onSave, onCancel, loading }) {
     belt: initial?.belt || '',
     trainingUnitId: initial?.training_unit_id || '',
   })
+  const [selectedCoachIds, setSelectedCoachIds] = useState(initialCoachIds || [])
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const ageCategory = form.birthDate ? getAgeCategoryFromBirthDate(form.birthDate) : null
+
+  const toggleCoach = (coachId) => {
+    setSelectedCoachIds(prev =>
+      prev.includes(coachId)
+        ? prev.filter(id => id !== coachId)
+        : [...prev, coachId]
+    )
+  }
 
   const inputCls = "w-full border border-[#C4CADB] rounded-lg px-3 py-2.5 text-sm bg-white text-[#0D1B35] focus:outline-none focus:border-[#1B4FA8]"
   const labelCls = "block text-[11px] font-bold uppercase tracking-wider text-[#A8AFBC] mb-1"
 
   return (
-    <form onSubmit={e => { e.preventDefault(); onSave(form) }}>
+    <form onSubmit={e => { e.preventDefault(); onSave(form, selectedCoachIds) }}>
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <label className={labelCls}>Nome completo</label>
@@ -57,6 +66,7 @@ function AthleteForm({ initial, units, onSave, onCancel, loading }) {
             {units.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
           </select>
         </div>
+
         <div className="col-span-2">
           <label className={labelCls}>Categoria de idade (automática)</label>
           <div className="mt-1">
@@ -65,7 +75,33 @@ function AthleteForm({ initial, units, onSave, onCancel, loading }) {
               : <span className="text-sm text-[#A8AFBC]">Informe a data de nascimento</span>}
           </div>
         </div>
+
+        {/* Professores */}
+        <div className="col-span-2">
+          <label className={labelCls}>Professores responsáveis</label>
+          {coaches.length === 0 ? (
+            <p className="text-sm text-[#A8AFBC] mt-1">Nenhum professor cadastrado.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2 mt-1">
+              {coaches.map(coach => (
+                <button
+                  key={coach.id}
+                  type="button"
+                  onClick={() => toggleCoach(coach.id)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-all
+                    ${selectedCoachIds.includes(coach.id)
+                      ? 'bg-[#1B4FA8] text-white border-[#1B4FA8]'
+                      : 'bg-white text-[#4A5568] border-[#C4CADB] hover:border-[#1B4FA8] hover:text-[#1B4FA8]'
+                    }`}
+                >
+                  {coach.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
       <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-[#DDE1EA]">
         <Button type="button" variant="ghost" onClick={onCancel}>Cancelar</Button>
         <Button type="submit" disabled={loading}>
@@ -82,21 +118,29 @@ export default function AthletesPage() {
   const { refreshPendingCount } = useSyncStatus()
   const [athletes, setAthletes] = useState([])
   const [units, setUnits] = useState([])
+  const [coaches, setCoaches] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [modal, setModal] = useState(null)
+  const [modalCoachIds, setModalCoachIds] = useState([])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       if (navigator.onLine) {
-        const [a, u] = await Promise.all([athletesApi.getAll(), trainingUnitsApi.getAll()])
+        const [a, u, c] = await Promise.all([
+          athletesApi.getAll(),
+          trainingUnitsApi.getAll(),
+          coachesApi.getAll(),
+        ])
         setAthletes(a)
         setUnits(u)
+        setCoaches(c)
       } else {
         const [a, u] = await Promise.all([getAll('athletes'), getAll('trainingUnits')])
         setAthletes(a.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')))
         setUnits(u)
+        setCoaches([])
       }
     } catch (e) {
       showToast(e.message, 'error')
@@ -107,7 +151,19 @@ export default function AthletesPage() {
 
   useEffect(() => { load() }, [load])
 
-  const handleSave = async (form) => {
+  const openModal = async (mode, athlete = null) => {
+    let coachIds = []
+    if (athlete) {
+      try {
+        const linked = await athletesApi.getCoaches(athlete.id)
+        coachIds = linked.map(c => c.id)
+      } catch { }
+    }
+    setModalCoachIds(coachIds)
+    setModal({ mode, athlete })
+  }
+
+  const handleSave = async (form, coachIds) => {
     setSaving(true)
     try {
       const payload = {
@@ -117,18 +173,29 @@ export default function AthletesPage() {
         belt: form.belt,
         training_unit_id: form.trainingUnitId,
       }
+
+      let athleteId = modal.athlete?.id
+
       if (modal.mode === 'edit') {
-        await offlineWrite('PUT', `/athletes/${modal.athlete.id}`, payload,
+        await offlineWrite('PUT', `/athletes/${athleteId}`, payload,
           () => putItem('athletes', { ...modal.athlete, ...payload })
         )
-        showToast(navigator.onLine ? 'Atleta atualizado.' : 'Salvo offline. Será sincronizado em breve.')
+        showToast(navigator.onLine ? 'Atleta atualizado.' : 'Salvo offline.')
       } else {
-        const tempId = `temp_${Date.now()}`
-        await offlineWrite('POST', '/athletes', payload,
-          () => putItem('athletes', { id: tempId, ...payload })
-        )
-        showToast(navigator.onLine ? 'Atleta cadastrado.' : 'Salvo offline. Será sincronizado em breve.')
+        const result = navigator.onLine
+          ? await athletesApi.create(payload)
+          : await offlineWrite('POST', '/athletes', payload,
+            () => putItem('athletes', { id: `temp_${Date.now()}`, ...payload })
+          )
+        athleteId = result?.id
+        showToast(navigator.onLine ? 'Atleta cadastrado.' : 'Salvo offline.')
       }
+
+      // Atualiza professores vinculados (só online)
+      if (navigator.onLine && athleteId) {
+        await athletesApi.updateCoaches(athleteId, coachIds)
+      }
+
       await refreshPendingCount()
       setModal(null)
       load()
@@ -155,11 +222,15 @@ export default function AthletesPage() {
       <PageHeader
         title="Atletas"
         description={`${athletes.length} atleta${athletes.length !== 1 ? 's' : ''} cadastrado${athletes.length !== 1 ? 's' : ''}`}
-        action={<Button onClick={() => setModal({ mode: 'add' })}>+ Novo Atleta</Button>}
+        action={<Button onClick={() => openModal('add')}>+ Novo Atleta</Button>}
       />
 
       {athletes.length === 0 ? (
-        <EmptyState title="Nenhum atleta cadastrado" description="Cadastre o primeiro atleta." action={<Button onClick={() => setModal({ mode: 'add' })}>+ Novo Atleta</Button>} />
+        <EmptyState
+          title="Nenhum atleta cadastrado"
+          description="Cadastre o primeiro atleta."
+          action={<Button onClick={() => openModal('add')}>+ Novo Atleta</Button>}
+        />
       ) : (
         <div className="bg-white border border-[#DDE1EA] rounded-xl shadow-sm overflow-hidden">
           <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 border-b border-[#DDE1EA] bg-[#F5F6F8]">
@@ -179,7 +250,7 @@ export default function AthletesPage() {
                 <div className="flex items-center"><BeltChip beltId={athlete.belt} /></div>
                 <div className="flex items-center text-sm text-[#4A5568]">{unit?.label || athlete.training_unit_label || '—'}</div>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => setModal({ mode: 'edit', athlete })} className="p-1.5 rounded-lg text-[#A8AFBC] hover:text-[#1B4FA8] hover:bg-[#E6EFFC] transition-colors">
+                  <button onClick={() => openModal('edit', athlete)} className="p-1.5 rounded-lg text-[#A8AFBC] hover:text-[#1B4FA8] hover:bg-[#E6EFFC] transition-colors">
                     <EvaIcon name="edit-2-outline" size={16} fill="currentColor" />
                   </button>
                   <button onClick={() => handleDelete(athlete)} className="p-1.5 rounded-lg text-[#A8AFBC] hover:text-red-600 hover:bg-red-50 transition-colors">
@@ -192,8 +263,18 @@ export default function AthletesPage() {
         </div>
       )}
 
-      <Modal isOpen={!!modal} onClose={() => setModal(null)} title={modal?.mode === 'edit' ? 'Editar Atleta' : 'Novo Atleta'}>
-        {modal && <AthleteForm initial={modal.athlete} units={units} onSave={handleSave} onCancel={() => setModal(null)} loading={saving} />}
+      <Modal isOpen={!!modal} onClose={() => setModal(null)} title={modal?.mode === 'edit' ? 'Editar Atleta' : 'Novo Atleta'} maxWidth="max-w-xl">
+        {modal && (
+          <AthleteForm
+            initial={modal.athlete}
+            units={units}
+            coaches={coaches}
+            initialCoachIds={modalCoachIds}
+            onSave={handleSave}
+            onCancel={() => setModal(null)}
+            loading={saving}
+          />
+        )}
       </Modal>
     </div>
   )
