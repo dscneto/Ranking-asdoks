@@ -5,13 +5,15 @@ import Topbar from './Topbar'
 import { useAuth } from '../../context/AuthContext'
 
 const TITLES = {
-  '/':              'Ranking',
-  '/atletas':       'Atletas',
-  '/competicoes':   'Competições',
-  '/resultados':    'Lançar Resultados',
-  '/tipos':         'Tipos de Competição',
+  '/': 'Ranking',
+  '/atletas': 'Atletas',
+  '/professores': 'Professores',
+  '/ranking-professores': 'Ranking de Professores',
+  '/competicoes': 'Competições',
+  '/resultados': 'Lançar Resultados',
+  '/tipos': 'Tipos de Competição',
   '/configuracoes': 'Configurações',
-  '/usuarios':      'Usuários',
+  '/usuarios': 'Usuários',
 }
 
 export default function AppLayout() {
