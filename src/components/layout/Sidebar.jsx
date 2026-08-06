@@ -11,6 +11,8 @@ const PUBLIC_NAV = [
 
 const PRIVATE_NAV = [
   { to: '/atletas', label: 'Atletas', icon: 'people' },
+  { to: '/professores', label: 'Professores', icon: 'person-done' },
+  { to: '/ranking-professores', label: 'Ranking Professores', icon: 'star' },
   { to: '/resultados', label: 'Lançar Resultados', icon: 'bar-chart-2' },
   { to: '/usuarios', label: 'Usuários', icon: 'person' },
   { to: '/configuracoes', label: 'Configurações', icon: 'settings-2' },
@@ -31,10 +33,7 @@ export default function Sidebar({ isOpen, onClose }) {
   return (
     <>
       {isOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-[rgba(13,50,120,0.45)] lg:hidden"
-          onClick={onClose}
-        />
+        <div className="fixed inset-0 z-50 bg-[rgba(13,50,120,0.45)] lg:hidden" onClick={onClose} />
       )}
 
       <aside className={`
@@ -44,7 +43,6 @@ export default function Sidebar({ isOpen, onClose }) {
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0
       `}>
-
         {/* Logo */}
         <div className="flex items-center justify-between px-4 pt-5 pb-4 border-b border-white/10 flex-shrink-0">
           <img
@@ -84,12 +82,11 @@ export default function Sidebar({ isOpen, onClose }) {
           ))}
         </nav>
 
-        {/* Footer — login/logout */}
+        {/* Footer */}
         <div className="px-3 py-3 border-t border-white/10 flex-shrink-0">
           {isAuth ? (
             <div>
               <div className="flex items-center gap-3 px-3 py-2 mb-1">
-                {/* Avatar com iniciais */}
                 <div className="w-8 h-8 rounded-full bg-[#1B4FA8] border-2 border-white/20 flex items-center justify-center text-white text-[11px] font-extrabold flex-shrink-0">
                   {user.name.trim().split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase()}
                 </div>
