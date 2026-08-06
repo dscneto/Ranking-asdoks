@@ -12,16 +12,14 @@ import ResultsPage from './pages/ResultsPage'
 import CompetitionTypesPage from './pages/CompetitionTypesPage'
 import SettingsPage from './pages/SettingsPage'
 import UsersPage from './pages/UsersPage'
+import CoachesPage from './pages/CoachesPage'
+import CoachesRankingPage from './pages/CoachesRankingPage'
 
 function PrivateRoute({ children }) {
   const { isAuth, loading } = useAuth()
-
   if (loading) return (
-    <div className="flex justify-center py-16 text-[#A8AFBC] text-sm">
-      Carregando...
-    </div>
+    <div className="flex justify-center py-16 text-[#A8AFBC] text-sm">Carregando...</div>
   )
-
   return isAuth ? children : <Navigate to="/login" replace />
 }
 
@@ -41,6 +39,8 @@ export default function App() {
 
               {/* Protegidas */}
               <Route path="atletas" element={<PrivateRoute><AthletesPage /></PrivateRoute>} />
+              <Route path="professores" element={<PrivateRoute><CoachesPage /></PrivateRoute>} />
+              <Route path="ranking-professores" element={<PrivateRoute><CoachesRankingPage /></PrivateRoute>} />
               <Route path="resultados" element={<PrivateRoute><ResultsPage /></PrivateRoute>} />
               <Route path="configuracoes" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
               <Route path="usuarios" element={<PrivateRoute><UsersPage /></PrivateRoute>} />
